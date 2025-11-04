@@ -4,11 +4,12 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, Runtime, AppHandle, State,
+    Manager, Runtime, AppHandle,
 };
 use std::process::Command;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 use serde_json::{Value, Map};
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +19,7 @@ fn get_extended_path() -> String {
     {
         let user_profile = env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string());
 
-        let mut system_paths = vec![
+        let system_paths = vec![
             // Claude Code 可能的安装路径
             format!("{}\\AppData\\Local\\Programs\\claude-code", user_profile),
             format!("{}\\AppData\\Roaming\\npm", user_profile),
@@ -601,7 +602,7 @@ fn compare_versions(current: &str, latest: &str) -> bool {
 }
 
 #[tauri::command]
-async fn configure_api(tool: String, provider: String, api_key: String, base_url: Option<String>, profile_name: Option<String>) -> Result<(), String> {
+async fn configure_api(tool: String, _provider: String, api_key: String, base_url: Option<String>, profile_name: Option<String>) -> Result<(), String> {
     let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
     let base_url_str = base_url.unwrap_or_else(|| "https://jp.duckcoding.com".to_string());
 
