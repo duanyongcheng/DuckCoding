@@ -666,13 +666,27 @@ function App() {
   };
 
   const handleUpdate = async (toolId: string) => {
+    // 防止重复点击
+    if (updating) {
+      alert("已有更新任务正在进行，请等待完成后再试");
+      return;
+    }
+
     try {
       setUpdating(toolId);
       await updateTool(toolId);
       await loadToolStatus();
+      alert("更新成功！");
     } catch (error) {
       console.error("Failed to update " + toolId, error);
-      alert("更新失败: " + error);
+      const errorMsg = String(error);
+
+      // 检查是否是 Homebrew 锁定错误
+      if (errorMsg.includes("already locked") || errorMsg.includes("Please wait for it to finish")) {
+        alert("Homebrew 正在处理其他任务，请稍后重试。\n\n如需强制解锁，请在终端运行：\npkill -9 brew && rm -rf ~/Library/Caches/Homebrew/Locks/*");
+      } else {
+        alert("更新失败: " + error);
+      }
     } finally {
       setUpdating(null);
     }

@@ -248,6 +248,7 @@ async fn check_node_environment() -> Result<NodeEnvironment, String> {
 
 #[tauri::command]
 async fn install_tool(tool: String, method: String) -> Result<InstallResult, String> {
+    #[cfg(debug_assertions)]
     println!("Installing {} via {} (pure Rust implementation)", tool, method);
 
     match tool.as_str() {
@@ -446,6 +447,7 @@ async fn fetch_latest_version_from_npm(package_name: &str) -> Result<String, Str
 // 只检查更新，不执行
 #[tauri::command]
 async fn check_update(tool: String) -> Result<UpdateResult, String> {
+    #[cfg(debug_assertions)]
     println!("Checking updates for {} (pure Rust + npm mirror)", tool);
 
     // 跨平台命令执行辅助函数
@@ -528,6 +530,7 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
         _ => None,
     };
 
+    #[cfg(debug_assertions)]
     println!("Current version: {:?}", current_version);
 
     // 根据工具类型获取npm包名
@@ -545,6 +548,7 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
 
     match latest_version_result {
         Ok(latest_version_str) => {
+            #[cfg(debug_assertions)]
             println!("Latest version from npm: {}", latest_version_str);
 
             // 比较版本
@@ -578,6 +582,7 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
 
 #[tauri::command]
 async fn update_tool(tool: String) -> Result<UpdateResult, String> {
+    #[cfg(debug_assertions)]
     println!("Updating {} (pure Rust implementation)", tool);
 
     // 根据工具类型获取更新命令
@@ -594,10 +599,12 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
                 let stdout_str = String::from_utf8_lossy(&output.stdout);
                 // 如果 npm list 输出包含包名，说明是 npm 安装的
                 if output.status.success() && stdout_str.contains("@anthropic-ai/claude-code") {
+                    #[cfg(debug_assertions)]
                     println!("Claude Code detected as npm installation, using npm update");
                     ("npm", vec!["update", "-g", "@anthropic-ai/claude-code"], "npm更新")
                 } else {
                     // 使用DuckCoding镜像脚本更新
+                    #[cfg(debug_assertions)]
                     println!("Claude Code detected as native installation, using DuckCoding mirror");
                     #[cfg(target_os = "windows")]
                     {
@@ -611,6 +618,7 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
                 }
             } else {
                 // npm 命令失败，默认使用DuckCoding镜像
+                #[cfg(debug_assertions)]
                 println!("npm check failed, defaulting to DuckCoding mirror");
                 #[cfg(target_os = "windows")]
                 {
@@ -623,32 +631,40 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
             }
         },
         "codex" => {
-            // CodeX 检测安装方式（仅 macOS 检查 brew）
+            // CodeX 更新策略：根据平台选择最佳方式
             #[cfg(target_os = "macos")]
             {
-                // macOS: 检查是否是 brew 安装的
-                let check_which = Command::new("which")
+                // macOS: 优先使用 Homebrew Cask（无需 sudo，版本 0.53.0）
+                // 如果用户想要最新的 npm 版本（0.54.0），需要手动切换
+
+                // 检查是否已通过 Homebrew 安装
+                let check_brew_cask = Command::new("brew")
                     .env("PATH", get_extended_path())
-                    .arg("codex")
+                    .args(&["list", "--cask", "codex"])
                     .output();
 
-                if let Ok(output) = check_which {
-                    let path = String::from_utf8_lossy(&output.stdout);
-                    if path.contains("/opt/homebrew/") || path.contains("/usr/local/") {
-                        // brew 安装的，使用 brew 更新
-                        ("brew", vec!["upgrade", "codex"], "Homebrew更新")
-                    } else {
-                        // npm 安装的
-                        ("npm", vec!["update", "-g", "@openai/codex"], "npm更新")
-                    }
+                let is_brew_installed = if let Ok(output) = check_brew_cask {
+                    output.status.success()
                 } else {
-                    // 默认用 npm
-                    ("npm", vec!["update", "-g", "@openai/codex"], "npm更新")
+                    false
+                };
+
+                if is_brew_installed {
+                    // 已经是 Homebrew 安装，直接升级
+                    ("brew", vec!["upgrade", "--cask", "codex"], "Homebrew Cask更新")
+                } else {
+                    // 不是 Homebrew，切换到 Homebrew（推荐）
+                    ("sh", vec!["-c", "rm -f /opt/homebrew/bin/codex /usr/local/bin/codex ~/.local/bin/codex ~/.codex/bin/codex && brew install --cask codex"], "切换到 Homebrew Cask")
                 }
             }
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(target_os = "windows")]
             {
-                // Windows 和 Linux 统一用 npm
+                // Windows: 使用 npm（主要方式）
+                ("npm", vec!["update", "-g", "@openai/codex"], "npm更新")
+            }
+            #[cfg(target_os = "linux")]
+            {
+                // Linux: 使用 npm（主要方式）
                 ("npm", vec!["update", "-g", "@openai/codex"], "npm更新")
             }
         },
@@ -694,8 +710,18 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    println!("Update stdout: {}", stdout);
-    println!("Update stderr: {}", stderr);
+    #[cfg(debug_assertions)]
+    {
+        println!("Update stdout: {}", stdout);
+        println!("Update stderr: {}", stderr);
+    }
+
+    // 检查是否是 npm 缓存权限错误
+    if !output.status.success() && stderr.contains("EACCES") && stderr.contains(".npm") {
+        return Err(format!(
+            "npm 权限问题\n\n这是因为之前使用 sudo npm 安装导致的。\n\n解决方案（任选其一）：\n\n方案1 - 修复 npm 权限（推荐）：\n在终端运行：\nsudo chown -R $(id -u):$(id -g) \"$HOME/.npm\"\n\n方案2 - 配置 npm 使用用户目录：\nnpm config set prefix ~/.npm-global\nexport PATH=~/.npm-global/bin:$PATH\n\n方案3 - macOS 用户切换到 Homebrew（无需 sudo）：\nbrew uninstall --cask codex\nbrew install --cask codex\n\n然后重试更新。"
+        ));
+    }
 
     if output.status.success() {
         // 获取更新后的版本
