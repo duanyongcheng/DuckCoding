@@ -305,10 +305,42 @@ async fn install_tool(tool: String, method: String) -> Result<InstallResult, Str
     }
 }
 
+// GitHub Release API 响应结构
+#[derive(Deserialize, Debug)]
+struct GitHubRelease {
+    tag_name: String,
+}
+
+// 从GitHub获取最新版本
+async fn fetch_latest_version_from_github(repo: &str) -> Result<String, String> {
+    let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", "DuckCoding-Desktop-App")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch from GitHub: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("GitHub API returned status: {}", response.status()));
+    }
+
+    let release: GitHubRelease = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse GitHub response: {}", e))?;
+
+    // 移除 'v' 前缀（如果有）
+    let version = release.tag_name.trim_start_matches('v').to_string();
+    Ok(version)
+}
+
 // 只检查更新，不执行
 #[tauri::command]
 async fn check_update(tool: String) -> Result<UpdateResult, String> {
-    println!("Checking updates for {} (pure Rust implementation)", tool);
+    println!("Checking updates for {} (pure Rust + GitHub API)", tool);
 
     // 跨平台命令执行辅助函数
     let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
@@ -335,42 +367,54 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
     let current_version = match tool.as_str() {
         "claude-code" => {
             if let Ok(output) = run_command("claude --version 2>&1") {
-                let stdout_str = String::from_utf8_lossy(&output.stdout);
-                let stderr_str = String::from_utf8_lossy(&output.stderr);
-                let version_output = if !stdout_str.trim().is_empty() {
-                    stdout_str.trim().to_string()
+                if output.status.success() {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    let version_output = if !stdout_str.trim().is_empty() {
+                        stdout_str.trim().to_string()
+                    } else {
+                        stderr_str.trim().to_string()
+                    };
+                    extract_version(&version_output)
                 } else {
-                    stderr_str.trim().to_string()
-                };
-                extract_version(&version_output)
+                    None
+                }
             } else {
                 None
             }
         },
         "codex" => {
             if let Ok(output) = run_command("codex --version 2>&1") {
-                let stdout_str = String::from_utf8_lossy(&output.stdout);
-                let stderr_str = String::from_utf8_lossy(&output.stderr);
-                let version_output = if !stdout_str.trim().is_empty() {
-                    stdout_str.trim().to_string()
+                if output.status.success() {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    let version_output = if !stdout_str.trim().is_empty() {
+                        stdout_str.trim().to_string()
+                    } else {
+                        stderr_str.trim().to_string()
+                    };
+                    extract_version(&version_output)
                 } else {
-                    stderr_str.trim().to_string()
-                };
-                extract_version(&version_output)
+                    None
+                }
             } else {
                 None
             }
         },
         "gemini-cli" => {
             if let Ok(output) = run_command("gemini --version 2>&1") {
-                let stdout_str = String::from_utf8_lossy(&output.stdout);
-                let stderr_str = String::from_utf8_lossy(&output.stderr);
-                let version_output = if !stdout_str.trim().is_empty() {
-                    stdout_str.trim().to_string()
+                if output.status.success() {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    let version_output = if !stdout_str.trim().is_empty() {
+                        stdout_str.trim().to_string()
+                    } else {
+                        stderr_str.trim().to_string()
+                    };
+                    extract_version(&version_output)
                 } else {
-                    stderr_str.trim().to_string()
-                };
-                extract_version(&version_output)
+                    None
+                }
             } else {
                 None
             }
@@ -380,50 +424,57 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
 
     println!("Current version: {:?}", current_version);
 
-    // 根据工具类型获取 npm 包名
-    let package_name = match tool.as_str() {
-        "claude-code" => "@anthropic-ai/claude-code",
-        "codex" => "@openai/codex",
-        "gemini-cli" => "@google/gemini-cli",
+    // 从GitHub或DuckCoding服务器获取最新版本
+    let latest_version_result = match tool.as_str() {
+        "codex" => {
+            // CodeX: 从GitHub获取
+            fetch_latest_version_from_github("openai/codex-cli").await
+        },
+        "gemini-cli" => {
+            // Gemini CLI: 从GitHub获取
+            fetch_latest_version_from_github("google/gemini-cli").await
+        },
+        "claude-code" => {
+            // Claude Code: 暂时返回无法检查，后续可从DuckCoding服务器获取
+            // TODO: 实现从DuckCoding服务器获取版本信息
+            Err("Claude Code版本检查暂不支持（需要从Google Cloud获取）".to_string())
+        },
         _ => {
             return Err(format!("Unknown tool: {}", tool));
         }
     };
 
-    // 检查最新版本
-    let npm_output = Command::new("npm")
-        .env("PATH", get_extended_path())
-        .args(&["show", package_name, "version"])
-        .output()
-        .map_err(|e| format!("Failed to check npm version: {}", e))?;
+    match latest_version_result {
+        Ok(latest_version_str) => {
+            println!("Latest version from GitHub: {}", latest_version_str);
 
-    if npm_output.status.success() {
-        let latest_version_str = String::from_utf8_lossy(&npm_output.stdout).trim().to_string();
-        println!("Latest version: {}", latest_version_str);
+            // 比较版本
+            let has_update = if let Some(ref current) = current_version {
+                compare_versions(current, &latest_version_str)
+            } else {
+                false
+            };
 
-        // 比较版本
-        let has_update = if let Some(ref current) = current_version {
-            compare_versions(current, &latest_version_str)
-        } else {
-            false
-        };
-
-        return Ok(UpdateResult {
-            success: true,
-            message: "检查完成".to_string(),
-            has_update,
-            current_version,
-            latest_version: Some(latest_version_str),
-        });
+            Ok(UpdateResult {
+                success: true,
+                message: "检查完成".to_string(),
+                has_update,
+                current_version,
+                latest_version: Some(latest_version_str),
+            })
+        },
+        Err(e) => {
+            println!("Failed to fetch latest version: {}", e);
+            // 降级：如果GitHub失败，返回无法检查但不报错
+            Ok(UpdateResult {
+                success: true,
+                message: format!("无法检查更新: {}", e),
+                has_update: false,
+                current_version,
+                latest_version: None,
+            })
+        }
     }
-
-    Ok(UpdateResult {
-        success: true,
-        message: "无法检查更新".to_string(),
-        has_update: false,
-        current_version,
-        latest_version: None,
-    })
 }
 
 #[tauri::command]
