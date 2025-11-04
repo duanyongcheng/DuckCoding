@@ -53,6 +53,8 @@ interface SortableProfileItemProps {
 }
 
 function SortableProfileItem({ profile, toolId, switching, onSwitch, onDelete }: SortableProfileItemProps) {
+  console.log("SortableProfileItem rendered", { profile, toolId, switching });
+
   const {
     attributes,
     listeners,
@@ -85,10 +87,15 @@ function SortableProfileItem({ profile, toolId, switching, onSwitch, onDelete }:
         <span className="font-medium text-slate-900 dark:text-slate-100">{profile}</span>
       </div>
       <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-500">switching: {switching ? 'true' : 'false'}</span>
         <Button
           size="sm"
           variant="outline"
-          onClick={() => onSwitch(toolId, profile)}
+          onClick={(e) => {
+            e.stopPropagation();
+            console.log("Switch button clicked", { toolId, profile });
+            onSwitch(toolId, profile);
+          }}
           disabled={switching}
           className="shadow-sm hover:shadow-md transition-all"
         >
@@ -104,16 +111,26 @@ function SortableProfileItem({ profile, toolId, switching, onSwitch, onDelete }:
             </>
           )}
         </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          onClick={() => onDelete(toolId, profile)}
+        <button
+          onClick={(e) => {
+            alert("删除按钮被点击了！profile: " + profile);
+            e.stopPropagation();
+            e.preventDefault();
+            console.log("Delete button clicked", { toolId, profile });
+            console.log("onDelete function:", onDelete);
+            onDelete(toolId, profile);
+          }}
+          onMouseDown={(e) => {
+            alert("mousedown");
+            console.log("Delete button mousedown");
+          }}
           disabled={switching}
-          className="shadow-sm hover:shadow-md transition-all"
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:ring-offset-slate-950 dark:focus-visible:ring-slate-300 bg-red-500 text-white hover:bg-red-600 h-8 px-3 shadow-sm hover:shadow-md"
+          style={{ pointerEvents: 'auto', zIndex: 10 }}
         >
           <Trash2 className="h-3 w-3 mr-1" />
-          删除
-        </Button>
+          删除{switching ? '(disabled)' : ''}
+        </button>
       </div>
     </div>
   );
@@ -140,6 +157,8 @@ function App() {
   const [apiKey, setApiKey] = useState<string>("");
   const [baseUrl, setBaseUrl] = useState<string>("");
   const [profileName, setProfileName] = useState<string>("");
+  const [configMessage, setConfigMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const configMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 配置切换状态
   const [profiles, setProfiles] = useState<Record<string, string[]>>({});
@@ -301,6 +320,9 @@ function App() {
     return () => {
       if (updateMessageTimeoutRef.current) {
         clearTimeout(updateMessageTimeoutRef.current);
+      }
+      if (configMessageTimeoutRef.current) {
+        clearTimeout(configMessageTimeoutRef.current);
       }
     };
   }, []);
@@ -614,7 +636,16 @@ function App() {
 
     if (!selectedTool || !apiKey) {
       console.error("Validation failed:", { selectedTool, hasApiKey: !!apiKey });
-      alert("请填写必填项：\n" + (!selectedTool ? "- 请选择工具\n" : "") + (!apiKey ? "- 请输入 API Key" : ""));
+      setConfigMessage({ type: 'error', text: "请填写必填项：\n" + (!selectedTool ? "- 请选择工具\n" : "") + (!apiKey ? "- 请输入 API Key" : "") });
+
+      // 清除之前的定时器
+      if (configMessageTimeoutRef.current) {
+        clearTimeout(configMessageTimeoutRef.current);
+      }
+      // 5秒后清除消息
+      configMessageTimeoutRef.current = setTimeout(() => {
+        setConfigMessage(null);
+      }, 5000);
       return;
     }
 
@@ -629,23 +660,53 @@ function App() {
         profileName || undefined
       );
       console.log("Configuration successful");
-      alert("配置成功！");
+
+      // 设置成功消息
+      setConfigMessage({
+        type: 'success',
+        text: `✅ ${selectedTool === 'claude-code' ? 'Claude Code' : selectedTool === 'codex' ? 'CodeX' : 'Gemini CLI'} 配置保存成功！${profileName ? `\n配置名称: ${profileName}` : ''}`
+      });
+
+      // 清空表单
       setApiKey("");
       setBaseUrl("");
       setProfileName("");
+
+      // 重新加载配置列表
       await loadAllProfiles();
+
+      // 清除之前的定时器
+      if (configMessageTimeoutRef.current) {
+        clearTimeout(configMessageTimeoutRef.current);
+      }
+      // 5秒后清除消息
+      configMessageTimeoutRef.current = setTimeout(() => {
+        setConfigMessage(null);
+      }, 5000);
     } catch (error) {
       console.error("Failed to configure API:", error);
-      alert("配置失败: " + error);
+      setConfigMessage({ type: 'error', text: "配置失败: " + error });
+
+      // 清除之前的定时器
+      if (configMessageTimeoutRef.current) {
+        clearTimeout(configMessageTimeoutRef.current);
+      }
+      // 5秒后清除消息
+      configMessageTimeoutRef.current = setTimeout(() => {
+        setConfigMessage(null);
+      }, 5000);
     } finally {
       setConfiguring(false);
     }
   };
 
   const handleSwitchProfile = async (toolId: string, profile: string) => {
+    console.log("handleSwitchProfile called", { toolId, profile, currentSwitchingState: switching });
     try {
       setSwitching(true);
+      console.log("Set switching to true");
       await switchProfile(toolId, profile);
+      console.log("switchProfile API call completed");
       setSelectedProfile({ ...selectedProfile, [toolId]: profile });
 
       // 重新加载当前生效的配置
@@ -661,19 +722,27 @@ function App() {
       console.error("Failed to switch profile:", error);
       alert("切换失败: " + error);
     } finally {
+      console.log("Setting switching back to false");
       setSwitching(false);
     }
   };
 
   const handleDeleteProfile = async (toolId: string, profile: string) => {
+    console.log("handleDeleteProfile called", { toolId, profile });
+
     // 确认删除
     const confirmed = window.confirm(`确定要删除配置「${profile}」吗？此操作不可恢复。`);
+    console.log("Delete confirmed:", confirmed);
+
     if (!confirmed) {
+      console.log("Delete cancelled by user");
       return;
     }
 
     try {
+      console.log("Calling deleteProfile API...");
       await deleteProfile(toolId, profile);
+      console.log("DeleteProfile API call successful");
 
       // 重新加载该工具的配置列表
       try {
@@ -1025,6 +1094,32 @@ function App() {
                   <h2 className="text-2xl font-semibold mb-1">配置 API</h2>
                   <p className="text-sm text-muted-foreground">配置 DuckCoding API 或自定义 API 端点</p>
                 </div>
+
+                {/* 配置成功/失败消息 */}
+                {configMessage && (
+                  <div className={`mb-4 p-4 rounded-lg border ${
+                    configMessage.type === 'success'
+                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800'
+                      : 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950 dark:to-rose-950 border-red-200 dark:border-red-800'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      {configMessage.type === 'success' ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className={`text-sm whitespace-pre-line ${
+                          configMessage.type === 'success'
+                            ? 'text-green-800 dark:text-green-200'
+                            : 'text-red-800 dark:text-red-200'
+                        }`}>
+                          {configMessage.text}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {installedTools.length > 0 ? (
                   <div className="grid gap-4">

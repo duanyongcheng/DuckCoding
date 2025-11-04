@@ -11,11 +11,6 @@ use std::env;
 use std::fs;
 use serde_json::{Value, Map};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::Mutex;
-
-// 全局状态：CLI目录路径
-struct CliDir(Mutex<PathBuf>);
 
 // 辅助函数：获取扩展的PATH环境变量
 fn get_extended_path() -> String {
@@ -81,34 +76,6 @@ fn get_extended_path() -> String {
 
         format!("{}:{}", system_paths.join(":"), env::var("PATH").unwrap_or_default())
     }
-}
-
-// 辅助函数：获取CLI工作目录
-fn get_cli_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    // 尝试获取资源目录（打包后）
-    if let Ok(resource_dir) = app_handle.path().resource_dir() {
-        println!("Resource dir: {:?}", resource_dir);
-
-        // Tauri 2.0在macOS上会把资源放在_up_子目录
-        let up_dir = resource_dir.join("_up_");
-        if up_dir.join("cli.js").exists() {
-            println!("Found cli.js in _up_ dir: {:?}", up_dir);
-            return Ok(up_dir);
-        }
-
-        // 检查cli.js是否直接在资源目录
-        let cli_path = resource_dir.join("cli.js");
-        if cli_path.exists() {
-            println!("Found cli.js in resource dir: {:?}", cli_path);
-            return Ok(resource_dir);
-        }
-    }
-
-    // 开发环境：使用当前目录
-    let current = env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
-    println!("Using current dir: {:?}", current);
-    Ok(current)
 }
 
 //定义 Tauri Commands
@@ -218,45 +185,198 @@ async fn check_installations() -> Result<Vec<ToolStatus>, String> {
 }
 
 #[tauri::command]
-async fn install_tool(tool: String, method: String, cli_dir: State<'_, CliDir>) -> Result<InstallResult, String> {
-    let cli_path = cli_dir.0.lock().unwrap().clone();
+async fn install_tool(tool: String, method: String) -> Result<InstallResult, String> {
+    println!("Installing {} via {} (pure Rust implementation)", tool, method);
 
-    println!("Installing {} via {} in {:?}", tool, method, cli_path);
+    match tool.as_str() {
+        "claude-code" => {
+            // Claude Code 使用官方安装脚本
+            #[cfg(target_os = "windows")]
+            {
+                // Windows: irm https://claude.ai/install.ps1 | iex
+                let output = Command::new("powershell")
+                    .env("PATH", get_extended_path())
+                    .args(&[
+                        "-Command",
+                        "irm https://claude.ai/install.ps1 | iex"
+                    ])
+                    .output()
+                    .map_err(|e| format!("Failed to execute installation: {}", e))?;
 
-    // 调用 Node.js CLI 安装工具
-    let output = Command::new("node")
-        .env("PATH", get_extended_path())
-        .current_dir(&cli_path)
-        .arg("cli.js")
-        .arg("install")
-        .arg(&tool)
-        .arg("--method")
-        .arg(&method)
-        .output()
-        .map_err(|e| format!("Failed to execute command: {}", e))?;
+                if output.status.success() {
+                    Ok(InstallResult {
+                        success: true,
+                        message: "Claude Code installed successfully".to_string(),
+                        output: String::from_utf8_lossy(&output.stdout).to_string(),
+                    })
+                } else {
+                    Err(format!("Installation failed: {}", String::from_utf8_lossy(&output.stderr)))
+                }
+            }
 
-    println!("Install output: {}", String::from_utf8_lossy(&output.stdout));
-    println!("Install stderr: {}", String::from_utf8_lossy(&output.stderr));
+            #[cfg(not(target_os = "windows"))]
+            {
+                // macOS/Linux: curl -fsSL https://claude.ai/install.sh | bash
+                let output = Command::new("sh")
+                    .env("PATH", get_extended_path())
+                    .args(&[
+                        "-c",
+                        "curl -fsSL https://claude.ai/install.sh | bash"
+                    ])
+                    .output()
+                    .map_err(|e| format!("Failed to execute installation: {}", e))?;
 
-    if output.status.success() {
-        Ok(InstallResult {
-            success: true,
-            message: format!("{} installed successfully via {}", tool, method),
-            output: String::from_utf8_lossy(&output.stdout).to_string(),
-        })
-    } else {
-        Err(format!(
-            "Installation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ))
+                if output.status.success() {
+                    Ok(InstallResult {
+                        success: true,
+                        message: "Claude Code installed successfully".to_string(),
+                        output: String::from_utf8_lossy(&output.stdout).to_string(),
+                    })
+                } else {
+                    Err(format!("Installation failed: {}", String::from_utf8_lossy(&output.stderr)))
+                }
+            }
+        },
+        "codex" => {
+            // CodeX 安装
+            if method == "brew" {
+                #[cfg(target_os = "macos")]
+                {
+                    let output = Command::new("brew")
+                        .env("PATH", get_extended_path())
+                        .args(&["install", "--cask", "codex"])
+                        .output()
+                        .map_err(|e| format!("Failed to execute brew: {}", e))?;
+
+                    if output.status.success() {
+                        Ok(InstallResult {
+                            success: true,
+                            message: "CodeX installed successfully via Homebrew".to_string(),
+                            output: String::from_utf8_lossy(&output.stdout).to_string(),
+                        })
+                    } else {
+                        Err(format!("Homebrew installation failed: {}", String::from_utf8_lossy(&output.stderr)))
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    Err("Homebrew is only available on macOS".to_string())
+                }
+            } else {
+                // npm 安装（跨平台）
+                let output = Command::new("npm")
+                    .env("PATH", get_extended_path())
+                    .args(&["install", "-g", "@openai/codex"])
+                    .output()
+                    .map_err(|e| format!("Failed to execute npm: {}", e))?;
+
+                if output.status.success() {
+                    Ok(InstallResult {
+                        success: true,
+                        message: "CodeX installed successfully via npm".to_string(),
+                        output: String::from_utf8_lossy(&output.stdout).to_string(),
+                    })
+                } else {
+                    Err(format!("npm installation failed: {}", String::from_utf8_lossy(&output.stderr)))
+                }
+            }
+        },
+        "gemini-cli" => {
+            // Gemini CLI 使用 npm 安装
+            let output = Command::new("npm")
+                .env("PATH", get_extended_path())
+                .args(&["install", "-g", "@google/gemini-cli"])
+                .output()
+                .map_err(|e| format!("Failed to execute npm: {}", e))?;
+
+            if output.status.success() {
+                Ok(InstallResult {
+                    success: true,
+                    message: "Gemini CLI installed successfully via npm".to_string(),
+                    output: String::from_utf8_lossy(&output.stdout).to_string(),
+                })
+            } else {
+                Err(format!("npm installation failed: {}", String::from_utf8_lossy(&output.stderr)))
+            }
+        },
+        _ => Err(format!("Unknown tool: {}", tool))
     }
 }
 
 // 只检查更新，不执行
 #[tauri::command]
-async fn check_update(tool: String, cli_dir: State<'_, CliDir>) -> Result<UpdateResult, String> {
-    let cli_path = cli_dir.0.lock().unwrap().clone();
-    println!("Checking updates for {} in {:?}", tool, cli_path);
+async fn check_update(tool: String) -> Result<UpdateResult, String> {
+    println!("Checking updates for {} (pure Rust implementation)", tool);
+
+    // 跨平台命令执行辅助函数
+    let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
+        #[cfg(target_os = "windows")]
+        {
+            Command::new("cmd")
+                .env("PATH", get_extended_path())
+                .arg("/C")
+                .arg(cmd)
+                .output()
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            Command::new("sh")
+                .env("PATH", get_extended_path())
+                .arg("-c")
+                .arg(cmd)
+                .output()
+        }
+    };
+
+    // 获取当前安装的版本
+    let current_version = match tool.as_str() {
+        "claude-code" => {
+            if let Ok(output) = run_command("claude --version 2>&1") {
+                let stdout_str = String::from_utf8_lossy(&output.stdout);
+                let stderr_str = String::from_utf8_lossy(&output.stderr);
+                let version_output = if !stdout_str.trim().is_empty() {
+                    stdout_str.trim().to_string()
+                } else {
+                    stderr_str.trim().to_string()
+                };
+                extract_version(&version_output)
+            } else {
+                None
+            }
+        },
+        "codex" => {
+            if let Ok(output) = run_command("codex --version 2>&1") {
+                let stdout_str = String::from_utf8_lossy(&output.stdout);
+                let stderr_str = String::from_utf8_lossy(&output.stderr);
+                let version_output = if !stdout_str.trim().is_empty() {
+                    stdout_str.trim().to_string()
+                } else {
+                    stderr_str.trim().to_string()
+                };
+                extract_version(&version_output)
+            } else {
+                None
+            }
+        },
+        "gemini-cli" => {
+            if let Ok(output) = run_command("gemini --version 2>&1") {
+                let stdout_str = String::from_utf8_lossy(&output.stdout);
+                let stderr_str = String::from_utf8_lossy(&output.stderr);
+                let version_output = if !stdout_str.trim().is_empty() {
+                    stdout_str.trim().to_string()
+                } else {
+                    stderr_str.trim().to_string()
+                };
+                extract_version(&version_output)
+            } else {
+                None
+            }
+        },
+        _ => None,
+    };
+
+    println!("Current version: {:?}", current_version);
 
     // 根据工具类型获取 npm 包名
     let package_name = match tool.as_str() {
@@ -268,32 +388,16 @@ async fn check_update(tool: String, cli_dir: State<'_, CliDir>) -> Result<Update
         }
     };
 
-    // 获取当前安装的版本
-    let check_output = Command::new("node")
-        .env("PATH", get_extended_path())
-        .current_dir(&cli_path)
-        .arg("cli.js")
-        .arg("check")
-        .output();
-
-    let current_version = if let Ok(output) = check_output {
-        let version_str = String::from_utf8_lossy(&output.stdout);
-        extract_version_for_tool(&version_str, &tool)
-    } else {
-        None
-    };
-
     // 检查最新版本
     let npm_output = Command::new("npm")
         .env("PATH", get_extended_path())
-        .arg("show")
-        .arg(package_name)
-        .arg("version")
+        .args(&["show", package_name, "version"])
         .output()
         .map_err(|e| format!("Failed to check npm version: {}", e))?;
 
     if npm_output.status.success() {
         let latest_version_str = String::from_utf8_lossy(&npm_output.stdout).trim().to_string();
+        println!("Latest version: {}", latest_version_str);
 
         // 比较版本
         let has_update = if let Some(ref current) = current_version {
@@ -321,15 +425,21 @@ async fn check_update(tool: String, cli_dir: State<'_, CliDir>) -> Result<Update
 }
 
 #[tauri::command]
-async fn update_tool(tool: String, cli_dir: State<'_, CliDir>) -> Result<UpdateResult, String> {
-    let cli_path = cli_dir.0.lock().unwrap().clone();
-    println!("Updating {} using cli at {:?}", tool, cli_path);
+async fn update_tool(tool: String) -> Result<UpdateResult, String> {
+    println!("Updating {} (pure Rust implementation)", tool);
 
     // 根据工具类型获取更新命令
     let (update_command, update_args) = match tool.as_str() {
         "claude-code" => {
-            // Claude Code 使用 npm 更新（跨平台）
-            ("npm", vec!["install", "-g", "@anthropic-ai/claude-code@latest"])
+            // Claude Code 使用官方安装脚本（重新安装即更新）
+            #[cfg(target_os = "windows")]
+            {
+                ("powershell", vec!["-Command", "irm https://claude.ai/install.ps1 | iex"])
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                ("sh", vec!["-c", "curl -fsSL https://claude.ai/install.sh | bash"])
+            }
         },
         "codex" => {
             // CodeX 检测安装方式（仅 macOS 检查 brew）
@@ -348,22 +458,22 @@ async fn update_tool(tool: String, cli_dir: State<'_, CliDir>) -> Result<UpdateR
                         ("brew", vec!["upgrade", "codex"])
                     } else {
                         // npm 安装的
-                        ("npm", vec!["install", "-g", "@openai/codex@latest"])
+                        ("npm", vec!["update", "-g", "@openai/codex"])
                     }
                 } else {
                     // 默认用 npm
-                    ("npm", vec!["install", "-g", "@openai/codex@latest"])
+                    ("npm", vec!["update", "-g", "@openai/codex"])
                 }
             }
             #[cfg(not(target_os = "macos"))]
             {
                 // Windows 和 Linux 统一用 npm
-                ("npm", vec!["install", "-g", "@openai/codex@latest"])
+                ("npm", vec!["update", "-g", "@openai/codex"])
             }
         },
         "gemini-cli" => {
             // Gemini CLI 使用 npm 更新（跨平台）
-            ("npm", vec!["install", "-g", "@google/gemini-cli@latest"])
+            ("npm", vec!["update", "-g", "@google/gemini-cli"])
         },
         _ => {
             return Err(format!("Unknown tool: {}", tool));
@@ -386,18 +496,70 @@ async fn update_tool(tool: String, cli_dir: State<'_, CliDir>) -> Result<UpdateR
 
     if output.status.success() {
         // 获取更新后的版本
-        let check_output = Command::new("node")
-            .env("PATH", get_extended_path())
-            .current_dir(&cli_path)
-            .arg("cli.js")
-            .arg("check")
-            .output();
+        let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
+            #[cfg(target_os = "windows")]
+            {
+                Command::new("cmd")
+                    .env("PATH", get_extended_path())
+                    .arg("/C")
+                    .arg(cmd)
+                    .output()
+            }
 
-        let new_version = if let Ok(check) = check_output {
-            let version_str = String::from_utf8_lossy(&check.stdout);
-            extract_version_for_tool(&version_str, &tool)
-        } else {
-            None
+            #[cfg(not(target_os = "windows"))]
+            {
+                Command::new("sh")
+                    .env("PATH", get_extended_path())
+                    .arg("-c")
+                    .arg(cmd)
+                    .output()
+            }
+        };
+
+        let new_version = match tool.as_str() {
+            "claude-code" => {
+                if let Ok(output) = run_command("claude --version 2>&1") {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    let version_output = if !stdout_str.trim().is_empty() {
+                        stdout_str.trim().to_string()
+                    } else {
+                        stderr_str.trim().to_string()
+                    };
+                    extract_version(&version_output)
+                } else {
+                    None
+                }
+            },
+            "codex" => {
+                if let Ok(output) = run_command("codex --version 2>&1") {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    let version_output = if !stdout_str.trim().is_empty() {
+                        stdout_str.trim().to_string()
+                    } else {
+                        stderr_str.trim().to_string()
+                    };
+                    extract_version(&version_output)
+                } else {
+                    None
+                }
+            },
+            "gemini-cli" => {
+                if let Ok(output) = run_command("gemini --version 2>&1") {
+                    let stdout_str = String::from_utf8_lossy(&output.stdout);
+                    let stderr_str = String::from_utf8_lossy(&output.stderr);
+                    let version_output = if !stdout_str.trim().is_empty() {
+                        stdout_str.trim().to_string()
+                    } else {
+                        stderr_str.trim().to_string()
+                    };
+                    extract_version(&version_output)
+                } else {
+                    None
+                }
+            },
+            _ => None,
         };
 
         Ok(UpdateResult {
@@ -410,26 +572,6 @@ async fn update_tool(tool: String, cli_dir: State<'_, CliDir>) -> Result<UpdateR
     } else {
         Err(format!("更新失败: {}", stderr))
     }
-}
-
-// 从 check 命令输出中提取特定工具的版本号
-fn extract_version_for_tool(text: &str, tool: &str) -> Option<String> {
-    let lines: Vec<&str> = text.lines().collect();
-
-    // 找到工具对应的行
-    for (i, line) in lines.iter().enumerate() {
-        if (tool == "claude-code" && line.contains("Claude Code")) ||
-           (tool == "codex" && line.contains("CodeX")) ||
-           (tool == "gemini-cli" && line.contains("Gemini CLI")) {
-            // 查找下一行的版本号
-            if let Some(next_line) = lines.get(i + 1) {
-                if next_line.contains("版本:") {
-                    return extract_version(next_line);
-                }
-            }
-        }
-    }
-    None
 }
 
 // 从字符串中提取版本号
@@ -459,10 +601,9 @@ fn compare_versions(current: &str, latest: &str) -> bool {
 }
 
 #[tauri::command]
-async fn configure_api(tool: String, provider: String, api_key: String, base_url: Option<String>, profile_name: Option<String>, cli_dir: State<'_, CliDir>) -> Result<(), String> {
+async fn configure_api(tool: String, provider: String, api_key: String, base_url: Option<String>, profile_name: Option<String>) -> Result<(), String> {
     let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
     let base_url_str = base_url.unwrap_or_else(|| "https://jp.duckcoding.com".to_string());
-    let cli_path = cli_dir.0.lock().unwrap().clone();
 
     match tool.as_str() {
         "claude-code" => {
@@ -515,35 +656,79 @@ async fn configure_api(tool: String, provider: String, api_key: String, base_url
             }
         },
         "codex" => {
-            // 使用 CLI 处理 CodeX 配置（因为涉及 TOML）
+            println!("Configuring CodeX directly in Rust (no cli.js)...");
+            let config_dir = home_dir.join(".codex");
+            let config_path = config_dir.join("config.toml");
+            let auth_path = config_dir.join("auth.json");
 
-            let mut cmd = Command::new("node");
-            cmd.env("PATH", get_extended_path());
-            cmd.current_dir(&cli_path)
-                .arg("cli.js")
-                .arg("config")
-                .arg(&tool)
-                .arg("-k")
-                .arg(&api_key)
-                .arg("-p")
-                .arg(&provider)
-                .arg("-u")
-                .arg(&base_url_str);
+            // 确保目录存在
+            fs::create_dir_all(&config_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
 
-            if let Some(profile) = profile_name {
-                if !profile.is_empty() {
-                    cmd.arg("-n").arg(&profile);
+            // 读取现有config.toml
+            let mut config_table: toml::map::Map<String, toml::Value> = if config_path.exists() {
+                let content = fs::read_to_string(&config_path)
+                    .map_err(|e| format!("Failed to read config.toml: {}", e))?;
+                toml::from_str(&content).unwrap_or_else(|_| toml::map::Map::new())
+            } else {
+                toml::map::Map::new()
+            };
+
+            // 设置基本配置
+            config_table.insert("model_provider".to_string(), toml::Value::String("duckcoding".to_string()));
+            config_table.insert("model".to_string(), toml::Value::String("gpt-5-codex".to_string()));
+            config_table.insert("model_reasoning_effort".to_string(), toml::Value::String("high".to_string()));
+            config_table.insert("network_access".to_string(), toml::Value::String("enabled".to_string()));
+            config_table.insert("disable_response_storage".to_string(), toml::Value::Boolean(true));
+
+            // 设置model_providers
+            let mut providers_table = toml::map::Map::new();
+            let mut duckcoding_provider = toml::map::Map::new();
+            duckcoding_provider.insert("name".to_string(), toml::Value::String("duckcoding".to_string()));
+            duckcoding_provider.insert("base_url".to_string(), toml::Value::String(
+                if base_url_str.ends_with("/v1") {
+                    base_url_str.clone()
+                } else {
+                    format!("{}/v1", base_url_str)
                 }
-            }
+            ));
+            duckcoding_provider.insert("wire_api".to_string(), toml::Value::String("responses".to_string()));
+            duckcoding_provider.insert("requires_openai_auth".to_string(), toml::Value::Boolean(true));
 
-            let output = cmd.output()
-                .map_err(|e| format!("Failed to execute command: {}", e))?;
+            providers_table.insert("duckcoding".to_string(), toml::Value::Table(duckcoding_provider));
+            config_table.insert("model_providers".to_string(), toml::Value::Table(providers_table));
 
-            if !output.status.success() {
-                return Err(format!(
-                    "Configuration failed: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                ));
+            // 写入config.toml
+            let toml_string = toml::to_string_pretty(&config_table)
+                .map_err(|e| format!("Failed to serialize TOML: {}", e))?;
+            fs::write(&config_path, toml_string)
+                .map_err(|e| format!("Failed to write config.toml: {}", e))?;
+            println!("CodeX config.toml written successfully");
+
+            // 写入auth.json
+            let auth_data = serde_json::json!({
+                "OPENAI_API_KEY": api_key
+            });
+            fs::write(&auth_path, serde_json::to_string_pretty(&auth_data).unwrap())
+                .map_err(|e| format!("Failed to write auth.json: {}", e))?;
+            println!("CodeX auth.json written successfully");
+
+            // 如果有profile_name，保存备份
+            if let Some(profile) = &profile_name {
+                if !profile.is_empty() {
+                    println!("Saving CodeX backup for profile: {}", profile);
+
+                    // 备份config
+                    let backup_config_path = config_dir.join(format!("config.{}.toml", profile));
+                    fs::write(&backup_config_path, toml::to_string_pretty(&config_table).unwrap())
+                        .map_err(|e| format!("Failed to write backup config: {}", e))?;
+
+                    // 备份auth
+                    let backup_auth_path = config_dir.join(format!("auth.{}.json", profile));
+                    fs::write(&backup_auth_path, serde_json::to_string_pretty(&auth_data).unwrap())
+                        .map_err(|e| format!("Failed to write backup auth: {}", e))?;
+
+                    println!("CodeX backup saved: config.{}.toml, auth.{}.json", profile, profile);
+                }
             }
         },
         "gemini-cli" => {
@@ -604,7 +789,7 @@ async fn configure_api(tool: String, provider: String, api_key: String, base_url
 }
 
 #[tauri::command]
-async fn list_profiles(tool: String, cli_dir: State<'_, CliDir>) -> Result<Vec<String>, String> {
+async fn list_profiles(tool: String) -> Result<Vec<String>, String> {
     let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
     let mut profiles = Vec::new();
 
@@ -897,36 +1082,60 @@ async fn switch_profile(tool: String, profile: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn delete_profile(tool: String, profile: String) -> Result<(), String> {
+    println!("Deleting profile: tool={}, profile={}", tool, profile);
     let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
 
     match tool.as_str() {
         "claude-code" => {
             let config_dir = home_dir.join(".claude");
             let backup_path = config_dir.join(format!("settings.{}.json", profile));
+            println!("Claude Code backup path: {:?}", backup_path);
 
             if !backup_path.exists() {
-                return Err(format!("配置文件不存在: {}", profile));
+                let err = format!("配置文件不存在: {}", profile);
+                println!("Error: {}", err);
+                return Err(err);
             }
 
             fs::remove_file(&backup_path)
-                .map_err(|e| format!("删除配置失败: {}", e))?;
+                .map_err(|e| {
+                    let err = format!("删除配置失败: {}", e);
+                    println!("Error: {}", err);
+                    err
+                })?;
+            println!("Successfully deleted Claude Code profile: {}", profile);
         },
         "codex" => {
             let config_dir = home_dir.join(".codex");
             let backup_config_path = config_dir.join(format!("config.{}.toml", profile));
             let backup_auth_path = config_dir.join(format!("auth.{}.json", profile));
+            println!("CodeX config path: {:?}", backup_config_path);
+            println!("CodeX auth path: {:?}", backup_auth_path);
 
             if !backup_config_path.exists() {
-                return Err(format!("配置文件不存在: {}", profile));
+                let err = format!("配置文件不存在: {}", profile);
+                println!("Error: {}", err);
+                return Err(err);
             }
 
             fs::remove_file(&backup_config_path)
-                .map_err(|e| format!("删除配置失败: {}", e))?;
+                .map_err(|e| {
+                    let err = format!("删除配置失败: {}", e);
+                    println!("Error: {}", err);
+                    err
+                })?;
+            println!("Deleted config.toml for profile: {}", profile);
 
             if backup_auth_path.exists() {
                 fs::remove_file(&backup_auth_path)
-                    .map_err(|e| format!("删除认证文件失败: {}", e))?;
+                    .map_err(|e| {
+                        let err = format!("删除认证文件失败: {}", e);
+                        println!("Error: {}", err);
+                        err
+                    })?;
+                println!("Deleted auth.json for profile: {}", profile);
             }
+            println!("Successfully deleted CodeX profile: {}", profile);
         },
         "gemini-cli" => {
             let config_dir = home_dir.join(".gemini");
@@ -1435,37 +1644,51 @@ fn detect_profile_name(tool: &str, active_api_key: &str, active_base_url: &str, 
                     "codex" => {
                         // 需要同时检查 config.toml 和 auth.json
                         let auth_backup = config_dir.join(format!("auth.{}.json", profile));
+
+                        let mut api_key_matches = false;
                         if let Ok(auth_content) = fs::read_to_string(&auth_backup) {
                             if let Ok(auth) = serde_json::from_str::<Value>(&auth_content) {
                                 let backup_api_key = auth.get("OPENAI_API_KEY")
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("");
 
-                                if backup_api_key != active_api_key {
-                                    return None;
-                                }
+                                api_key_matches = backup_api_key == active_api_key;
                             }
                         }
 
-                        // 检查 base_url
-                        if let Ok(config_content) = fs::read_to_string(entry.path()) {
-                            if let Ok(config) = toml::from_str::<toml::Value>(&config_content) {
-                                if let toml::Value::Table(table) = config {
-                                    if let Some(toml::Value::Table(providers)) = table.get("model_providers") {
-                                        for (_, provider) in providers {
-                                            if let toml::Value::Table(p) = provider {
-                                                if let Some(toml::Value::String(url)) = p.get("base_url") {
-                                                    if url == active_base_url {
-                                                        return Some(profile.to_string());
+                        if !api_key_matches {
+                            false
+                        } else {
+                            // API Key 匹配，继续检查 base_url
+                            if let Ok(config_content) = fs::read_to_string(entry.path()) {
+                                if let Ok(config) = toml::from_str::<toml::Value>(&config_content) {
+                                    if let toml::Value::Table(table) = config {
+                                        if let Some(toml::Value::Table(providers)) = table.get("model_providers") {
+                                            let mut url_matches = false;
+                                            for (_, provider) in providers {
+                                                if let toml::Value::Table(p) = provider {
+                                                    if let Some(toml::Value::String(url)) = p.get("base_url") {
+                                                        if url == active_base_url {
+                                                            url_matches = true;
+                                                            break;
+                                                        }
                                                     }
                                                 }
                                             }
+                                            url_matches
+                                        } else {
+                                            false
                                         }
+                                    } else {
+                                        false
                                     }
+                                } else {
+                                    false
                                 }
+                            } else {
+                                false
                             }
                         }
-                        false
                     },
                     "gemini-cli" => {
                         if let Ok(content) = fs::read_to_string(entry.path()) {
@@ -1716,10 +1939,6 @@ fn main() {
             }
 
             println!("Working directory: {:?}", env::current_dir());
-
-            // 初始化CLI目录state
-            let cli_path = get_cli_dir(app.handle())?;
-            app.manage(CliDir(Mutex::new(cli_path)));
 
             // 创建系统托盘菜单
             let tray_menu = create_tray_menu(app.handle())?;
