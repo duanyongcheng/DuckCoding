@@ -130,7 +130,8 @@ async fn check_installations() -> Result<Vec<ToolStatus>, String> {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
         println!("Claude Code detection - status: {}, stdout: {}, stderr: {}", output.status.success(), stdout_str.trim(), stderr_str.trim());
 
-        if output.status.success() || !stdout_str.is_empty() || !stderr_str.is_empty() {
+        // 只有命令成功执行才认为已安装
+        if output.status.success() {
             if let Some(tool) = tools.iter_mut().find(|t| t.id == "claude-code") {
                 tool.installed = true;
                 // 尝试从stdout或stderr获取版本
@@ -150,7 +151,7 @@ async fn check_installations() -> Result<Vec<ToolStatus>, String> {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
         println!("CodeX detection - status: {}, stdout: {}, stderr: {}", output.status.success(), stdout_str.trim(), stderr_str.trim());
 
-        if output.status.success() || !stdout_str.is_empty() || !stderr_str.is_empty() {
+        if output.status.success() {
             if let Some(tool) = tools.iter_mut().find(|t| t.id == "codex") {
                 tool.installed = true;
                 let version_output = if !stdout_str.trim().is_empty() {
@@ -169,7 +170,7 @@ async fn check_installations() -> Result<Vec<ToolStatus>, String> {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
         println!("Gemini CLI detection - status: {}, stdout: {}, stderr: {}", output.status.success(), stdout_str.trim(), stderr_str.trim());
 
-        if output.status.success() || !stdout_str.is_empty() || !stderr_str.is_empty() {
+        if output.status.success() {
             if let Some(tool) = tools.iter_mut().find(|t| t.id == "gemini-cli") {
                 tool.installed = true;
                 let version_output = if !stdout_str.trim().is_empty() {
