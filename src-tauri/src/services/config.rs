@@ -466,18 +466,30 @@ impl ConfigService {
             anyhow::bail!("配置文件不存在: {:?}", backup_path);
         }
 
-        // 读取备份的 API 字段
+        // 读取备份的 API 字段（兼容新旧格式）
         let backup_content = fs::read_to_string(&backup_path)
             .context("读取备份配置失败")?;
         let backup_data: Value = serde_json::from_str(&backup_content)
             .context("解析备份配置失败")?;
 
+        // 兼容旧格式：先尝试顶层字段（新格式），再尝试 env 下（旧格式）
         let api_key = backup_data.get("ANTHROPIC_AUTH_TOKEN")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("备份配置中缺少 API Key"))?;
+            .or_else(|| {
+                backup_data.get("env")
+                    .and_then(|env| env.get("ANTHROPIC_AUTH_TOKEN"))
+                    .and_then(|v| v.as_str())
+            })
+            .ok_or_else(|| anyhow::anyhow!("备份配置格式错误：缺少 API Key\n\n请重新保存配置以更新格式"))?;
+
         let base_url = backup_data.get("ANTHROPIC_BASE_URL")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("备份配置中缺少 Base URL"))?;
+            .or_else(|| {
+                backup_data.get("env")
+                    .and_then(|env| env.get("ANTHROPIC_BASE_URL"))
+                    .and_then(|v| v.as_str())
+            })
+            .ok_or_else(|| anyhow::anyhow!("备份配置格式错误：缺少 Base URL\n\n请重新保存配置以更新格式"))?;
 
         // 读取当前配置（保留其他字段）
         let mut settings = if active_path.exists() {

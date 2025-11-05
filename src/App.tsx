@@ -764,11 +764,20 @@ function App() {
 
     try {
       setDeletingProfiles(prev => ({ ...prev, [profileKey]: true }));
+
+      // 后端删除
       await deleteProfile(toolId, profile);
 
-      // 更新本地排序存档（移除已删除的 profile）
+      // 立即本地更新（乐观更新）
       const currentProfiles = profiles[toolId] || [];
       const updatedProfiles = currentProfiles.filter(p => p !== profile);
+
+      setProfiles(prev => ({
+        ...prev,
+        [toolId]: updatedProfiles
+      }));
+
+      // 更新本地排序存档
       saveProfileOrder(toolId, updatedProfiles);
 
       // 清理相关状态
@@ -780,23 +789,35 @@ function App() {
         return updated;
       });
 
-      // 重新加载所有配置，确保 UI 与后端同步
-      await loadAllProfiles();
+      // 尝试重新加载所有配置，确保与后端同步（失败不影响已显示的删除结果）
+      try {
+        await loadAllProfiles();
 
-      // 如果删除的是当前正在使用的配置，重新获取当前配置
-      if (activeConfigs[toolId]?.profile_name === profile) {
-        try {
-          const newActiveConfig = await getActiveConfig(toolId);
-          setActiveConfigs(prev => ({ ...prev, [toolId]: newActiveConfig }));
-        } catch (error) {
-          console.error("Failed to reload active config", error);
+        // 如果删除的是当前正在使用的配置，重新获取当前配置
+        if (activeConfigs[toolId]?.profile_name === profile) {
+          try {
+            const newActiveConfig = await getActiveConfig(toolId);
+            setActiveConfigs(prev => ({ ...prev, [toolId]: newActiveConfig }));
+          } catch (error) {
+            console.error("Failed to reload active config", error);
+          }
         }
+      } catch (reloadError) {
+        console.error("Failed to reload profiles after delete:", reloadError);
+        // 不影响用户体验，因为 UI 已经通过乐观更新反映了删除
       }
 
       alert("✅ 配置删除成功！");
     } catch (error) {
       console.error("Failed to delete profile:", error);
       alert("❌ 删除失败\n\n" + error);
+
+      // 删除失败，重新加载列表恢复 UI 状态
+      try {
+        await loadAllProfiles();
+      } catch (reloadError) {
+        console.error("Failed to reload profiles after delete error:", reloadError);
+      }
     } finally {
       setDeletingProfiles(prev => {
         const updated = { ...prev };
