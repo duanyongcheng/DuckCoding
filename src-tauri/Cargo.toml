@@ -35,7 +35,7 @@ cocoa = "0.25"
 objc = "0.2"
 
 [features]
-default = ["custom-protocol", "cli"]
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 cli = ["clap", "inquire", "console", "colored", "indicatif"]
 
