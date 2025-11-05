@@ -53,14 +53,7 @@ export function QuotaCard({ quota, loading }: QuotaCardProps) {
     : 0;
 
   const formatQuota = (value: number): string => {
-    // 如果值很小，显示更多位数
-    if (value < 0.01) {
-      return `¥${value.toFixed(6)}`;
-    } else if (value < 1) {
-      return `¥${value.toFixed(4)}`;
-    } else {
-      return `¥${value.toFixed(2)}`;
-    }
+    return `¥${value.toFixed(4)}`;
   };
 
   return (
