@@ -13,6 +13,10 @@ use std::path::PathBuf;
 use serde_json::{Value, Map};
 use serde::{Deserialize, Serialize};
 
+// Windows特定：隐藏命令行窗口
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 // 辅助函数：获取扩展的PATH环境变量
 fn get_extended_path() -> String {
     #[cfg(target_os = "windows")]
@@ -111,6 +115,7 @@ async fn check_installations() -> Result<Vec<ToolStatus>, String> {
                 .env("PATH", get_extended_path())
                 .arg("/C")
                 .arg(cmd)
+                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
                 .output()
         }
 
@@ -202,6 +207,7 @@ async fn check_node_environment() -> Result<NodeEnvironment, String> {
                 .env("PATH", get_extended_path())
                 .arg("/C")
                 .arg(cmd)
+                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
                 .output()
         }
         #[cfg(not(target_os = "windows"))]
@@ -255,6 +261,15 @@ async fn install_tool(tool: String, method: String) -> Result<InstallResult, Str
         "claude-code" => {
             if method == "npm" {
                 // npm 安装
+                #[cfg(target_os = "windows")]
+                let output = Command::new("npm")
+                    .env("PATH", get_extended_path())
+                    .args(&["install", "-g", "@anthropic-ai/claude-code"])
+                    .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
+                    .output()
+                    .map_err(|e| format!("Failed to execute npm: {}", e))?;
+
+                #[cfg(not(target_os = "windows"))]
                 let output = Command::new("npm")
                     .env("PATH", get_extended_path())
                     .args(&["install", "-g", "@anthropic-ai/claude-code"])
@@ -281,6 +296,7 @@ async fn install_tool(tool: String, method: String) -> Result<InstallResult, Str
                             "-Command",
                             "irm https://mirror.duckcoding.com/claude-code/install.ps1 | iex"
                         ])
+                        .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
                         .output()
                         .map_err(|e| format!("Failed to execute installation: {}", e))?;
 
@@ -346,6 +362,15 @@ async fn install_tool(tool: String, method: String) -> Result<InstallResult, Str
                 }
             } else {
                 // npm 安装（跨平台）
+                #[cfg(target_os = "windows")]
+                let output = Command::new("npm")
+                    .env("PATH", get_extended_path())
+                    .args(&["install", "-g", "@openai/codex"])
+                    .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
+                    .output()
+                    .map_err(|e| format!("Failed to execute npm: {}", e))?;
+
+                #[cfg(not(target_os = "windows"))]
                 let output = Command::new("npm")
                     .env("PATH", get_extended_path())
                     .args(&["install", "-g", "@openai/codex"])
@@ -365,6 +390,15 @@ async fn install_tool(tool: String, method: String) -> Result<InstallResult, Str
         },
         "gemini-cli" => {
             // Gemini CLI 使用 npm 安装
+            #[cfg(target_os = "windows")]
+            let output = Command::new("npm")
+                .env("PATH", get_extended_path())
+                .args(&["install", "-g", "@google/gemini-cli"])
+                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
+                .output()
+                .map_err(|e| format!("Failed to execute npm: {}", e))?;
+
+            #[cfg(not(target_os = "windows"))]
             let output = Command::new("npm")
                 .env("PATH", get_extended_path())
                 .args(&["install", "-g", "@google/gemini-cli"])
@@ -458,6 +492,7 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
                 .env("PATH", get_extended_path())
                 .arg("/C")
                 .arg(cmd)
+                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
                 .output()
         }
 
@@ -590,6 +625,14 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
         "claude-code" => {
             // Claude Code 检测安装方式
             // 首先检查是否通过 npm 安装
+            #[cfg(target_os = "windows")]
+            let check_npm = Command::new("npm")
+                .env("PATH", get_extended_path())
+                .args(&["list", "-g", "@anthropic-ai/claude-code", "--depth=0"])
+                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
+                .output();
+
+            #[cfg(not(target_os = "windows"))]
             let check_npm = Command::new("npm")
                 .env("PATH", get_extended_path())
                 .args(&["list", "-g", "@anthropic-ai/claude-code", "--depth=0"])
@@ -603,30 +646,29 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
                     println!("Claude Code detected as npm installation, using npm update");
                     ("npm", vec!["update", "-g", "@anthropic-ai/claude-code"], "npm更新")
                 } else {
-                    // 使用DuckCoding镜像脚本更新
+                    // 使用官方安装脚本更新（更稳定）
                     #[cfg(debug_assertions)]
-                    println!("Claude Code detected as native installation, using DuckCoding mirror");
+                    println!("Claude Code detected as native installation, using official installer");
                     #[cfg(target_os = "windows")]
                     {
-                        // Windows暂时还是用官方（或提示手动）
-                        ("powershell", vec!["-Command", "irm https://mirror.duckcoding.com/claude-code/install.ps1 | iex"], "DuckCoding镜像更新")
+                        ("powershell", vec!["-Command", "irm https://claude.ai/install.ps1 | iex"], "官方安装脚本更新")
                     }
                     #[cfg(not(target_os = "windows"))]
                     {
-                        ("sh", vec!["-c", "curl -fsSL https://mirror.duckcoding.com/claude-code/install.sh | bash"], "DuckCoding镜像更新")
+                        ("sh", vec!["-c", "curl -fsSL https://claude.ai/install.sh | bash"], "官方安装脚本更新")
                     }
                 }
             } else {
-                // npm 命令失败，默认使用DuckCoding镜像
+                // npm 命令失败，默认使用官方安装脚本
                 #[cfg(debug_assertions)]
-                println!("npm check failed, defaulting to DuckCoding mirror");
+                println!("npm check failed, defaulting to official installer");
                 #[cfg(target_os = "windows")]
                 {
-                    ("powershell", vec!["-Command", "irm https://mirror.duckcoding.com/claude-code/install.ps1 | iex"], "DuckCoding镜像更新")
+                    ("powershell", vec!["-Command", "irm https://claude.ai/install.ps1 | iex"], "官方安装脚本更新")
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
-                    ("sh", vec!["-c", "curl -fsSL https://mirror.duckcoding.com/claude-code/install.sh | bash"], "DuckCoding镜像更新")
+                    ("sh", vec!["-c", "curl -fsSL https://claude.ai/install.sh | bash"], "官方安装脚本更新")
                 }
             }
         },
@@ -683,10 +725,21 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
     use tokio::time::{timeout, Duration};
 
     let update_task = tokio::task::spawn_blocking(move || {
-        Command::new(update_command)
-            .env("PATH", get_extended_path())
-            .args(&update_args)
-            .output()
+        #[cfg(target_os = "windows")]
+        {
+            Command::new(update_command)
+                .env("PATH", get_extended_path())
+                .args(&update_args)
+                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
+                .output()
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            Command::new(update_command)
+                .env("PATH", get_extended_path())
+                .args(&update_args)
+                .output()
+        }
     });
 
     let output = match timeout(Duration::from_secs(120), update_task).await {
@@ -732,6 +785,7 @@ async fn update_tool(tool: String) -> Result<UpdateResult, String> {
                     .env("PATH", get_extended_path())
                     .arg("/C")
                     .arg(cmd)
+                    .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
                     .output()
             }
 
