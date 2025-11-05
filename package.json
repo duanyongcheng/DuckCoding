@@ -1,15 +1,9 @@
 {
   "name": "duckcoding-setup",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "DuckCoding 一键安装配置工具 - 支持 Claude Code, CodeX, Gemini CLI",
   "main": "index.js",
-  "bin": {
-    "duckcoding": "./cli.js",
-    "dc": "./cli.js"
-  },
   "scripts": {
-    "start": "node cli.js",
-    "test": "node cli.js --help",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
@@ -39,14 +33,10 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.3.3",
-    "chalk": "^4.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "commander": "^11.1.0",
     "date-fns": "^4.1.0",
-    "inquirer": "^8.2.6",
     "lucide-react": "^0.552.0",
-    "ora": "^5.4.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^3.3.0",

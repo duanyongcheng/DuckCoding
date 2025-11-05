@@ -10,8 +10,14 @@ use std::process::Command;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use serde_json::{Value, Map};
+use serde_json::Value;
 use serde::{Deserialize, Serialize};
+
+// 导入服务层
+use duckcoding::{
+    Tool, InstallerService, VersionService, ConfigService,
+    InstallMethod,
+};
 
 // Windows特定：隐藏命令行窗口
 #[cfg(target_os = "windows")]
@@ -23,7 +29,7 @@ fn get_extended_path() -> String {
     {
         let user_profile = env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".to_string());
 
-        let system_paths = vec![
+        let mut system_paths = vec![
             // Claude Code 可能的安装路径
             format!("{}\\AppData\\Local\\Programs\\claude-code", user_profile),
             format!("{}\\AppData\\Roaming\\npm", user_profile),
@@ -38,6 +44,11 @@ fn get_extended_path() -> String {
             "C:\\Windows\\System32".to_string(),
             "C:\\Windows".to_string(),
         ];
+
+        // nvm-windows支持
+        if let Ok(nvm_home) = env::var("NVM_HOME") {
+            system_paths.insert(0, format!("{}\\current", nvm_home));
+        }
 
         let current_path = env::var("PATH").unwrap_or_default();
         format!("{};{}", system_paths.join(";"), current_path)
@@ -64,18 +75,24 @@ fn get_extended_path() -> String {
             "/sbin".to_string(),
         ];
 
-        // 添加nvm路径（如果存在）
-        let nvm_dir = format!("{}/.nvm/versions/node", home_dir);
-        if let Ok(entries) = fs::read_dir(&nvm_dir) {
-            for entry in entries.flatten() {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_dir() {
-                        let bin_path = entry.path().join("bin");
-                        if bin_path.exists() {
-                            system_paths.push(bin_path.to_string_lossy().to_string());
-                        }
-                    }
+        // nvm支持 - 优先使用当前激活的版本
+        if let Ok(nvm_dir) = env::var("NVM_DIR") {
+            // 检查nvm current symlink
+            let nvm_current = format!("{}/current/bin", nvm_dir);
+            if std::path::Path::new(&nvm_current).exists() {
+                system_paths.insert(0, nvm_current);
+            } else {
+                // 如果没有current symlink，尝试读取.nvmrc或使用default
+                let nvm_default = format!("{}/.nvm/versions/node/default/bin", home_dir);
+                if std::path::Path::new(&nvm_default).exists() {
+                    system_paths.insert(0, nvm_default);
                 }
+            }
+        } else {
+            // 如果NVM_DIR未设置，尝试默认路径
+            let nvm_current = format!("{}/.nvm/current/bin", home_dir);
+            if std::path::Path::new(&nvm_current).exists() {
+                system_paths.insert(0, nvm_current);
             }
         }
 
@@ -86,115 +103,26 @@ fn get_extended_path() -> String {
 //定义 Tauri Commands
 #[tauri::command]
 async fn check_installations() -> Result<Vec<ToolStatus>, String> {
-    let mut tools = vec![
-        ToolStatus {
-            id: "claude-code".to_string(),
-            name: "Claude Code".to_string(),
-            installed: false,
-            version: None,
-        },
-        ToolStatus {
-            id: "codex".to_string(),
-            name: "CodeX".to_string(),
-            installed: false,
-            version: None,
-        },
-        ToolStatus {
-            id: "gemini-cli".to_string(),
-            name: "Gemini CLI".to_string(),
-            installed: false,
-            version: None,
-        },
-    ];
+    let installer = InstallerService::new();
+    let mut result = Vec::new();
 
-    // 跨平台命令执行辅助函数
-    let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
-        #[cfg(target_os = "windows")]
-        {
-            Command::new("cmd")
-                .env("PATH", get_extended_path())
-                .arg("/C")
-                .arg(cmd)
-                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                .output()
-        }
+    for tool in Tool::all() {
+        let installed = installer.is_installed(&tool).await;
+        let version = if installed {
+            installer.get_installed_version(&tool).await
+        } else {
+            None
+        };
 
-        #[cfg(not(target_os = "windows"))]
-        {
-            Command::new("sh")
-                .env("PATH", get_extended_path())
-                .arg("-c")
-                .arg(cmd)
-                .output()
-        }
-    };
-
-    // 检测 Claude Code
-    if let Ok(output) = run_command("claude --version 2>&1") {
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let stderr_str = String::from_utf8_lossy(&output.stderr);
-
-        #[cfg(debug_assertions)]
-        println!("Claude Code detection - status: {}, stdout: {}, stderr: {}", output.status.success(), stdout_str.trim(), stderr_str.trim());
-
-        // 只有命令成功执行才认为已安装
-        if output.status.success() {
-            if let Some(tool) = tools.iter_mut().find(|t| t.id == "claude-code") {
-                tool.installed = true;
-                // 尝试从stdout或stderr获取版本
-                let version_output = if !stdout_str.trim().is_empty() {
-                    stdout_str.trim().to_string()
-                } else {
-                    stderr_str.trim().to_string()
-                };
-                tool.version = Some(version_output);
-            }
-        }
+        result.push(ToolStatus {
+            id: tool.id.clone(),
+            name: tool.name.clone(),
+            installed,
+            version,
+        });
     }
 
-    // 检测 CodeX
-    if let Ok(output) = run_command("codex --version 2>&1") {
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let stderr_str = String::from_utf8_lossy(&output.stderr);
-
-        #[cfg(debug_assertions)]
-        println!("CodeX detection - status: {}, stdout: {}, stderr: {}", output.status.success(), stdout_str.trim(), stderr_str.trim());
-
-        if output.status.success() {
-            if let Some(tool) = tools.iter_mut().find(|t| t.id == "codex") {
-                tool.installed = true;
-                let version_output = if !stdout_str.trim().is_empty() {
-                    stdout_str.trim().to_string()
-                } else {
-                    stderr_str.trim().to_string()
-                };
-                tool.version = Some(version_output);
-            }
-        }
-    }
-
-    // 检测 Gemini CLI
-    if let Ok(output) = run_command("gemini --version 2>&1") {
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let stderr_str = String::from_utf8_lossy(&output.stderr);
-
-        #[cfg(debug_assertions)]
-        println!("Gemini CLI detection - status: {}, stdout: {}, stderr: {}", output.status.success(), stdout_str.trim(), stderr_str.trim());
-
-        if output.status.success() {
-            if let Some(tool) = tools.iter_mut().find(|t| t.id == "gemini-cli") {
-                tool.installed = true;
-                let version_output = if !stdout_str.trim().is_empty() {
-                    stdout_str.trim().to_string()
-                } else {
-                    stderr_str.trim().to_string()
-                };
-                tool.version = Some(version_output);
-            }
-        }
-    }
-
-    Ok(tools)
+    Ok(result)
 }
 
 // 检测node环境
@@ -255,1226 +183,242 @@ async fn check_node_environment() -> Result<NodeEnvironment, String> {
 #[tauri::command]
 async fn install_tool(tool: String, method: String) -> Result<InstallResult, String> {
     #[cfg(debug_assertions)]
-    println!("Installing {} via {} (pure Rust implementation)", tool, method);
+    println!("Installing {} via {} (using InstallerService)", tool, method);
 
-    match tool.as_str() {
-        "claude-code" => {
-            if method == "npm" {
-                // npm 安装
-                #[cfg(target_os = "windows")]
-                let output = Command::new("npm")
-                    .env("PATH", get_extended_path())
-                    .args(&["install", "-g", "@anthropic-ai/claude-code"])
-                    .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                    .output()
-                    .map_err(|e| {
-                        if e.kind() == std::io::ErrorKind::NotFound {
-                            "npm 未安装或未找到\n\n请先安装 Node.js (包含 npm):\n1. 访问 https://nodejs.org 下载安装\n2. 或使用官方安装方式（无需 npm）".to_string()
-                        } else {
-                            format!("执行 npm 失败: {}", e)
-                        }
-                    })?;
+    // 获取工具定义
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| "❌ 未知的工具\n\n请联系开发者报告此问题".to_string())?;
 
-                #[cfg(not(target_os = "windows"))]
-                let output = Command::new("npm")
-                    .env("PATH", get_extended_path())
-                    .args(&["install", "-g", "@anthropic-ai/claude-code"])
-                    .output()
-                    .map_err(|e| {
-                        if e.kind() == std::io::ErrorKind::NotFound {
-                            "npm 未安装或未找到\n\n请先安装 Node.js (包含 npm):\n1. 访问 https://nodejs.org 下载安装\n2. 或使用官方安装方式（无需 npm）".to_string()
-                        } else {
-                            format!("执行 npm 失败: {}", e)
-                        }
-                    })?;
+    // 转换安装方法
+    let install_method = match method.as_str() {
+        "npm" => InstallMethod::Npm,
+        "brew" => InstallMethod::Brew,
+        "official" => InstallMethod::Official,
+        _ => return Err(format!("❌ 未知的安装方法: {}", method)),
+    };
 
-                if output.status.success() {
-                    Ok(InstallResult {
-                        success: true,
-                        message: "Claude Code installed successfully via npm".to_string(),
-                        output: String::from_utf8_lossy(&output.stdout).to_string(),
-                    })
-                } else {
-                    Err(format!("npm installation failed: {}", String::from_utf8_lossy(&output.stderr)))
-                }
-            } else {
-                // official: 使用DuckCoding镜像安装脚本
-                #[cfg(target_os = "windows")]
-                {
-                    // Windows: irm https://mirror.duckcoding.com/claude-code/install.ps1 | iex
-                    let output = Command::new("powershell")
-                        .env("PATH", get_extended_path())
-                        .args(&[
-                            "-Command",
-                            "irm https://mirror.duckcoding.com/claude-code/install.ps1 | iex"
-                        ])
-                        .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                        .output()
-                        .map_err(|e| format!("Failed to execute installation: {}", e))?;
+    // 使用 InstallerService 安装
+    let installer = InstallerService::new();
 
-                    if output.status.success() {
-                        Ok(InstallResult {
-                            success: true,
-                            message: "Claude Code installed successfully".to_string(),
-                            output: String::from_utf8_lossy(&output.stdout).to_string(),
-                        })
-                    } else {
-                        Err(format!("Installation failed: {}", String::from_utf8_lossy(&output.stderr)))
-                    }
-                }
+    match installer.install(&tool_obj, &install_method).await {
+        Ok(_) => {
+            // 安装成功，构造成功消息
+            let message = match method.as_str() {
+                "npm" => format!("✅ {} 安装成功！(通过 npm)", tool_obj.name),
+                "brew" => format!("✅ {} 安装成功！(通过 Homebrew)", tool_obj.name),
+                "official" => format!("✅ {} 安装成功！", tool_obj.name),
+                _ => format!("✅ {} 安装成功！", tool_obj.name),
+            };
 
-                #[cfg(not(target_os = "windows"))]
-                {
-                    // macOS/Linux: curl -fsSL https://mirror.duckcoding.com/claude-code/install.sh | bash
-                    let output = Command::new("sh")
-                        .env("PATH", get_extended_path())
-                        .args(&[
-                            "-c",
-                            "curl -fsSL https://mirror.duckcoding.com/claude-code/install.sh | bash"
-                        ])
-                        .output()
-                        .map_err(|e| format!("Failed to execute installation: {}", e))?;
-
-                    if output.status.success() {
-                        Ok(InstallResult {
-                            success: true,
-                            message: "Claude Code installed successfully".to_string(),
-                            output: String::from_utf8_lossy(&output.stdout).to_string(),
-                        })
-                    } else {
-                        Err(format!("Installation failed: {}", String::from_utf8_lossy(&output.stderr)))
-                    }
-                }
-            }
-        },
-        "codex" => {
-            // CodeX 安装
-            if method == "brew" {
-                #[cfg(target_os = "macos")]
-                {
-                    let output = Command::new("brew")
-                        .env("PATH", get_extended_path())
-                        .args(&["install", "--cask", "codex"])
-                        .output()
-                        .map_err(|e| format!("Failed to execute brew: {}", e))?;
-
-                    if output.status.success() {
-                        Ok(InstallResult {
-                            success: true,
-                            message: "CodeX installed successfully via Homebrew".to_string(),
-                            output: String::from_utf8_lossy(&output.stdout).to_string(),
-                        })
-                    } else {
-                        Err(format!("Homebrew installation failed: {}", String::from_utf8_lossy(&output.stderr)))
-                    }
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    Err("Homebrew is only available on macOS".to_string())
-                }
-            } else {
-                // npm 安装（跨平台）
-                #[cfg(target_os = "windows")]
-                let output = Command::new("npm")
-                    .env("PATH", get_extended_path())
-                    .args(&["install", "-g", "@openai/codex"])
-                    .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                    .output()
-                    .map_err(|e| {
-                        if e.kind() == std::io::ErrorKind::NotFound {
-                            "npm 未安装或未找到\n\n请先安装 Node.js (包含 npm):\n访问 https://nodejs.org 下载安装".to_string()
-                        } else {
-                            format!("执行 npm 失败: {}", e)
-                        }
-                    })?;
-
-                #[cfg(not(target_os = "windows"))]
-                let output = Command::new("npm")
-                    .env("PATH", get_extended_path())
-                    .args(&["install", "-g", "@openai/codex"])
-                    .output()
-                    .map_err(|e| {
-                        if e.kind() == std::io::ErrorKind::NotFound {
-                            "npm 未安装或未找到\n\n请先安装 Node.js (包含 npm):\n访问 https://nodejs.org 下载安装".to_string()
-                        } else {
-                            format!("执行 npm 失败: {}", e)
-                        }
-                    })?;
-
-                if output.status.success() {
-                    Ok(InstallResult {
-                        success: true,
-                        message: "CodeX installed successfully via npm".to_string(),
-                        output: String::from_utf8_lossy(&output.stdout).to_string(),
-                    })
-                } else {
-                    Err(format!("npm installation failed: {}", String::from_utf8_lossy(&output.stderr)))
-                }
-            }
-        },
-        "gemini-cli" => {
-            // Gemini CLI 使用 npm 安装
-            #[cfg(target_os = "windows")]
-            let output = Command::new("npm")
-                .env("PATH", get_extended_path())
-                .args(&["install", "-g", "@google/gemini-cli"])
-                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                .output()
-                .map_err(|e| {
-                    if e.kind() == std::io::ErrorKind::NotFound {
-                        "npm 未安装或未找到\n\n请先安装 Node.js (包含 npm):\n访问 https://nodejs.org 下载安装".to_string()
-                    } else {
-                        format!("执行 npm 失败: {}", e)
-                    }
-                })?;
-
-            #[cfg(not(target_os = "windows"))]
-            let output = Command::new("npm")
-                .env("PATH", get_extended_path())
-                .args(&["install", "-g", "@google/gemini-cli"])
-                .output()
-                .map_err(|e| {
-                    if e.kind() == std::io::ErrorKind::NotFound {
-                        "npm 未安装或未找到\n\n请先安装 Node.js (包含 npm):\n访问 https://nodejs.org 下载安装".to_string()
-                    } else {
-                        format!("执行 npm 失败: {}", e)
-                    }
-                })?;
-
-            if output.status.success() {
-                Ok(InstallResult {
-                    success: true,
-                    message: "Gemini CLI installed successfully via npm".to_string(),
-                    output: String::from_utf8_lossy(&output.stdout).to_string(),
-                })
-            } else {
-                Err(format!("npm installation failed: {}", String::from_utf8_lossy(&output.stderr)))
-            }
-        },
-        _ => Err(format!("Unknown tool: {}", tool))
-    }
-}
-
-// npm Registry API 响应结构
-#[derive(Deserialize, Debug)]
-struct NpmPackageInfo {
-    #[serde(rename = "dist-tags")]
-    dist_tags: NpmDistTags,
-}
-
-#[derive(Deserialize, Debug)]
-struct NpmDistTags {
-    latest: String,
-}
-
-// 从npm镜像源获取最新版本
-async fn fetch_latest_version_from_npm(package_name: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
-
-    // 优先使用国内镜像（淘宝npm镜像）
-    let mirrors = vec![
-        format!("https://registry.npmmirror.com/{}", package_name),
-        format!("https://registry.npmjs.org/{}", package_name),
-    ];
-
-    for mirror_url in mirrors {
-        println!("Trying to fetch version from: {}", mirror_url);
-
-        match client
-            .get(&mirror_url)
-            .header("User-Agent", "DuckCoding-Desktop-App")
-            .timeout(std::time::Duration::from_secs(10))
-            .send()
-            .await
-        {
-            Ok(response) => {
-                if response.status().is_success() {
-                    match response.json::<NpmPackageInfo>().await {
-                        Ok(package_info) => {
-                            println!("Successfully fetched version: {}", package_info.dist_tags.latest);
-                            return Ok(package_info.dist_tags.latest);
-                        }
-                        Err(e) => {
-                            println!("Failed to parse response from {}: {}", mirror_url, e);
-                            continue;
-                        }
-                    }
-                } else {
-                    println!("Failed to fetch from {}: status {}", mirror_url, response.status());
-                    continue;
-                }
-            }
-            Err(e) => {
-                println!("Request to {} failed: {}", mirror_url, e);
-                continue;
-            }
+            Ok(InstallResult {
+                success: true,
+                message,
+                output: String::new(),
+            })
+        }
+        Err(e) => {
+            // 安装失败，返回错误信息
+            Err(e.to_string())
         }
     }
-
-    Err("所有npm镜像源均无法访问".to_string())
 }
 
 // 只检查更新，不执行
 #[tauri::command]
 async fn check_update(tool: String) -> Result<UpdateResult, String> {
     #[cfg(debug_assertions)]
-    println!("Checking updates for {} (pure Rust + npm mirror)", tool);
+    println!("Checking updates for {} (using VersionService)", tool);
 
-    // 跨平台命令执行辅助函数
-    let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
-        #[cfg(target_os = "windows")]
-        {
-            Command::new("cmd")
-                .env("PATH", get_extended_path())
-                .arg("/C")
-                .arg(cmd)
-                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                .output()
-        }
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| format!("未知工具: {}", tool))?;
 
-        #[cfg(not(target_os = "windows"))]
-        {
-            Command::new("sh")
-                .env("PATH", get_extended_path())
-                .arg("-c")
-                .arg(cmd)
-                .output()
-        }
-    };
+    let version_service = VersionService::new();
 
-    // 获取当前安装的版本
-    let current_version = match tool.as_str() {
-        "claude-code" => {
-            if let Ok(output) = run_command("claude --version 2>&1") {
-                if output.status.success() {
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                    let version_output = if !stdout_str.trim().is_empty() {
-                        stdout_str.trim().to_string()
-                    } else {
-                        stderr_str.trim().to_string()
-                    };
-                    extract_version(&version_output)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        },
-        "codex" => {
-            if let Ok(output) = run_command("codex --version 2>&1") {
-                if output.status.success() {
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                    let version_output = if !stdout_str.trim().is_empty() {
-                        stdout_str.trim().to_string()
-                    } else {
-                        stderr_str.trim().to_string()
-                    };
-                    extract_version(&version_output)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        },
-        "gemini-cli" => {
-            if let Ok(output) = run_command("gemini --version 2>&1") {
-                if output.status.success() {
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                    let version_output = if !stdout_str.trim().is_empty() {
-                        stdout_str.trim().to_string()
-                    } else {
-                        stderr_str.trim().to_string()
-                    };
-                    extract_version(&version_output)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        },
-        _ => None,
-    };
-
-    #[cfg(debug_assertions)]
-    println!("Current version: {:?}", current_version);
-
-    // 根据工具类型获取npm包名
-    let package_name = match tool.as_str() {
-        "claude-code" => "@anthropic-ai/claude-code",
-        "codex" => "@openai/codex",
-        "gemini-cli" => "@google/gemini-cli",
-        _ => {
-            return Err(format!("Unknown tool: {}", tool));
-        }
-    };
-
-    // 从npm镜像源获取最新版本
-    let latest_version_result = fetch_latest_version_from_npm(package_name).await;
-
-    match latest_version_result {
-        Ok(latest_version_str) => {
-            #[cfg(debug_assertions)]
-            println!("Latest version from npm: {}", latest_version_str);
-
-            // 比较版本
-            let has_update = if let Some(ref current) = current_version {
-                compare_versions(current, &latest_version_str)
-            } else {
-                false
-            };
-
+    match version_service.check_version(&tool_obj).await {
+        Ok(version_info) => {
             Ok(UpdateResult {
                 success: true,
                 message: "检查完成".to_string(),
-                has_update,
-                current_version,
-                latest_version: Some(latest_version_str),
+                has_update: version_info.has_update,
+                current_version: version_info.installed_version,
+                latest_version: version_info.latest_version,
+                tool_id: Some(tool.clone()),
             })
-        },
+        }
         Err(e) => {
-            println!("Failed to fetch latest version: {}", e);
-            // 降级：如果npm镜像源失败，返回无法检查但不报错
+            // 降级：如果检查失败，返回无法检查但不报错
             Ok(UpdateResult {
                 success: true,
                 message: format!("无法检查更新: {}", e),
                 has_update: false,
-                current_version,
+                current_version: None,
                 latest_version: None,
+                tool_id: Some(tool.clone()),
             })
         }
     }
+}
+
+// 批量检查所有工具更新（优化：单次网络请求）
+#[tauri::command]
+async fn check_all_updates() -> Result<Vec<UpdateResult>, String> {
+    #[cfg(debug_assertions)]
+    println!("Checking updates for all tools (batch mode)");
+
+    let version_service = VersionService::new();
+    let version_infos = version_service.check_all_tools().await;
+
+    let results = version_infos.into_iter().map(|info| {
+        UpdateResult {
+            success: true,
+            message: "检查完成".to_string(),
+            has_update: info.has_update,
+            current_version: info.installed_version,
+            latest_version: info.latest_version,
+            tool_id: Some(info.tool_id),
+        }
+    }).collect();
+
+    Ok(results)
 }
 
 #[tauri::command]
 async fn update_tool(tool: String) -> Result<UpdateResult, String> {
     #[cfg(debug_assertions)]
-    println!("Updating {} (pure Rust implementation)", tool);
+    println!("Updating {} (using InstallerService)", tool);
 
-    // 根据工具类型获取更新命令
-    let (update_command, update_args, description) = match tool.as_str() {
-        "claude-code" => {
-            // Claude Code 检测安装方式
-            // 首先检查是否通过 npm 安装
-            #[cfg(target_os = "windows")]
-            let check_npm = Command::new("npm")
-                .env("PATH", get_extended_path())
-                .args(&["list", "-g", "@anthropic-ai/claude-code", "--depth=0"])
-                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                .output();
+    // 获取工具定义
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| "❌ 未知的工具\n\n请联系开发者报告此问题".to_string())?;
 
-            #[cfg(not(target_os = "windows"))]
-            let check_npm = Command::new("npm")
-                .env("PATH", get_extended_path())
-                .args(&["list", "-g", "@anthropic-ai/claude-code", "--depth=0"])
-                .output();
+    // 使用 InstallerService 更新（内部有120秒超时）
+    let installer = InstallerService::new();
 
-            if let Ok(output) = check_npm {
-                let stdout_str = String::from_utf8_lossy(&output.stdout);
-                // 如果 npm list 输出包含包名，说明是 npm 安装的
-                if output.status.success() && stdout_str.contains("@anthropic-ai/claude-code") {
-                    #[cfg(debug_assertions)]
-                    println!("Claude Code detected as npm installation, using npm update");
-                    ("npm", vec!["update", "-g", "@anthropic-ai/claude-code"], "npm更新")
-                } else {
-                    // 使用官方安装脚本更新（更稳定）
-                    #[cfg(debug_assertions)]
-                    println!("Claude Code detected as native installation, using official installer");
-                    #[cfg(target_os = "windows")]
-                    {
-                        ("powershell", vec!["-Command", "irm https://claude.ai/install.ps1 | iex"], "官方安装脚本更新")
-                    }
-                    #[cfg(not(target_os = "windows"))]
-                    {
-                        ("sh", vec!["-c", "curl -fsSL https://claude.ai/install.sh | bash"], "官方安装脚本更新")
-                    }
-                }
-            } else {
-                // npm 命令失败，默认使用官方安装脚本
-                #[cfg(debug_assertions)]
-                println!("npm check failed, defaulting to official installer");
-                #[cfg(target_os = "windows")]
-                {
-                    ("powershell", vec!["-Command", "irm https://claude.ai/install.ps1 | iex"], "官方安装脚本更新")
-                }
-                #[cfg(not(target_os = "windows"))]
-                {
-                    ("sh", vec!["-c", "curl -fsSL https://claude.ai/install.sh | bash"], "官方安装脚本更新")
-                }
-            }
-        },
-        "codex" => {
-            // CodeX 更新策略：根据平台选择最佳方式
-            #[cfg(target_os = "macos")]
-            {
-                // macOS: 优先使用 Homebrew Cask（无需 sudo，版本 0.53.0）
-                // 如果用户想要最新的 npm 版本（0.54.0），需要手动切换
-
-                // 检查是否已通过 Homebrew 安装
-                let check_brew_cask = Command::new("brew")
-                    .env("PATH", get_extended_path())
-                    .args(&["list", "--cask", "codex"])
-                    .output();
-
-                let is_brew_installed = if let Ok(output) = check_brew_cask {
-                    output.status.success()
-                } else {
-                    false
-                };
-
-                if is_brew_installed {
-                    // 已经是 Homebrew 安装，直接升级
-                    ("brew", vec!["upgrade", "--cask", "codex"], "Homebrew Cask更新")
-                } else {
-                    // 不是 Homebrew，切换到 Homebrew（推荐）
-                    ("sh", vec!["-c", "rm -f /opt/homebrew/bin/codex /usr/local/bin/codex ~/.local/bin/codex ~/.codex/bin/codex && brew install --cask codex"], "切换到 Homebrew Cask")
-                }
-            }
-            #[cfg(target_os = "windows")]
-            {
-                // Windows: 使用 npm（主要方式）
-                ("npm", vec!["update", "-g", "@openai/codex"], "npm更新")
-            }
-            #[cfg(target_os = "linux")]
-            {
-                // Linux: 使用 npm（主要方式）
-                ("npm", vec!["update", "-g", "@openai/codex"], "npm更新")
-            }
-        },
-        "gemini-cli" => {
-            // Gemini CLI 使用 npm 更新（跨平台）
-            ("npm", vec!["update", "-g", "@google/gemini-cli"], "npm更新")
-        },
-        _ => {
-            return Err(format!("Unknown tool: {}", tool));
-        }
-    };
-
-    println!("使用{}方式更新: {} {:?}", description, update_command, update_args);
-
-    // 执行更新，使用tokio::time::timeout添加超时（120秒）
+    // 执行更新，添加超时控制
     use tokio::time::{timeout, Duration};
 
-    let update_task = tokio::task::spawn_blocking(move || {
-        #[cfg(target_os = "windows")]
-        {
-            Command::new(update_command)
-                .env("PATH", get_extended_path())
-                .args(&update_args)
-                .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                .output()
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Command::new(update_command)
-                .env("PATH", get_extended_path())
-                .args(&update_args)
-                .output()
-        }
-    });
+    let update_result = timeout(
+        Duration::from_secs(120),
+        installer.update(&tool_obj)
+    ).await;
 
-    let output = match timeout(Duration::from_secs(120), update_task).await {
-        Ok(Ok(Ok(output))) => output,
-        Ok(Ok(Err(e))) => {
-            return Err(format!("更新失败: {}", e));
-        },
+    match update_result {
+        Ok(Ok(_)) => {
+            // 更新成功，获取新版本
+            let new_version = installer.get_installed_version(&tool_obj).await;
+
+            Ok(UpdateResult {
+                success: true,
+                message: "✅ 更新成功！".to_string(),
+                has_update: false,
+                current_version: new_version.clone(),
+                latest_version: new_version,
+                tool_id: Some(tool.clone()),
+            })
+        }
         Ok(Err(e)) => {
-            return Err(format!("更新任务错误: {}", e));
-        },
+            // 更新失败，检查特殊错误情况
+            let error_str = e.to_string();
+
+            // 检查是否是 Homebrew 版本滞后
+            if error_str.contains("Not upgrading") && error_str.contains("already installed") {
+                return Err(
+                    "⚠️ Homebrew版本滞后\n\nHomebrew cask的版本更新不及时，目前是旧版本。\n\n✅ 解决方案：\n\n方案1 - 使用npm安装最新版本（自动使用国内镜像）：\n1. 卸载Homebrew版本：brew uninstall --cask codex\n2. 安装npm版本：npm install -g @openai/codex --registry https://registry.npmmirror.com\n\n方案2 - 等待Homebrew cask更新\n（可能需要几天到几周时间）\n\n推荐使用方案1，npm版本更新更及时。".to_string()
+                );
+            }
+
+            // 检查npm是否显示已经是最新版本
+            if error_str.contains("up to date") {
+                return Err(
+                    "ℹ️ 已是最新版本\n\n当前安装的版本已经是最新版本，无需更新。".to_string()
+                );
+            }
+
+            // 检查是否是 npm 缓存权限错误
+            if error_str.contains("EACCES") && error_str.contains(".npm") {
+                return Err(
+                    "⚠️ npm 权限问题\n\n这是因为之前使用 sudo npm 安装导致的。\n\n✅ 解决方案（任选其一）：\n\n方案1 - 修复 npm 权限（推荐）：\n在终端运行：\nsudo chown -R $(id -u):$(id -g) \"$HOME/.npm\"\n\n方案2 - 配置 npm 使用用户目录：\nnpm config set prefix ~/.npm-global\nexport PATH=~/.npm-global/bin:$PATH\n\n方案3 - macOS 用户切换到 Homebrew（无需 sudo）：\nbrew uninstall --cask codex\nbrew install --cask codex\n\n然后重试更新。".to_string()
+                );
+            }
+
+            // 其他错误
+            Err(error_str)
+        }
         Err(_) => {
-            let timeout_msg = if description.contains("DuckCoding镜像") {
-                "更新超时（120秒）。\n\n可能的原因：\n1. 镜像服务器响应慢\n2. 网络连接不稳定\n\n建议：\n1. 检查网络连接\n2. 重试更新\n3. 或使用 npm 方式：先卸载后重装\n   npm uninstall -g @anthropic-ai/claude-code\n   npm install -g @anthropic-ai/claude-code"
-            } else {
-                "更新超时（120秒）。\n\n请检查网络连接或稍后重试。"
-            };
-            return Err(timeout_msg.to_string());
-        }
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    #[cfg(debug_assertions)]
-    {
-        println!("Update stdout: {}", stdout);
-        println!("Update stderr: {}", stderr);
-    }
-
-    // 检查是否是 npm 缓存权限错误
-    if !output.status.success() && stderr.contains("EACCES") && stderr.contains(".npm") {
-        return Err(format!(
-            "npm 权限问题\n\n这是因为之前使用 sudo npm 安装导致的。\n\n解决方案（任选其一）：\n\n方案1 - 修复 npm 权限（推荐）：\n在终端运行：\nsudo chown -R $(id -u):$(id -g) \"$HOME/.npm\"\n\n方案2 - 配置 npm 使用用户目录：\nnpm config set prefix ~/.npm-global\nexport PATH=~/.npm-global/bin:$PATH\n\n方案3 - macOS 用户切换到 Homebrew（无需 sudo）：\nbrew uninstall --cask codex\nbrew install --cask codex\n\n然后重试更新。"
-        ));
-    }
-
-    if output.status.success() {
-        // 获取更新后的版本
-        let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
-            #[cfg(target_os = "windows")]
-            {
-                Command::new("cmd")
-                    .env("PATH", get_extended_path())
-                    .arg("/C")
-                    .arg(cmd)
-                    .creation_flags(0x08000000)  // CREATE_NO_WINDOW - 隐藏终端窗口
-                    .output()
-            }
-
-            #[cfg(not(target_os = "windows"))]
-            {
-                Command::new("sh")
-                    .env("PATH", get_extended_path())
-                    .arg("-c")
-                    .arg(cmd)
-                    .output()
-            }
-        };
-
-        let new_version = match tool.as_str() {
-            "claude-code" => {
-                if let Ok(output) = run_command("claude --version 2>&1") {
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                    let version_output = if !stdout_str.trim().is_empty() {
-                        stdout_str.trim().to_string()
-                    } else {
-                        stderr_str.trim().to_string()
-                    };
-                    extract_version(&version_output)
-                } else {
-                    None
-                }
-            },
-            "codex" => {
-                if let Ok(output) = run_command("codex --version 2>&1") {
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                    let version_output = if !stdout_str.trim().is_empty() {
-                        stdout_str.trim().to_string()
-                    } else {
-                        stderr_str.trim().to_string()
-                    };
-                    extract_version(&version_output)
-                } else {
-                    None
-                }
-            },
-            "gemini-cli" => {
-                if let Ok(output) = run_command("gemini --version 2>&1") {
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let stderr_str = String::from_utf8_lossy(&output.stderr);
-                    let version_output = if !stdout_str.trim().is_empty() {
-                        stdout_str.trim().to_string()
-                    } else {
-                        stderr_str.trim().to_string()
-                    };
-                    extract_version(&version_output)
-                } else {
-                    None
-                }
-            },
-            _ => None,
-        };
-
-        Ok(UpdateResult {
-            success: true,
-            message: "更新成功".to_string(),
-            has_update: false,
-            current_version: new_version.clone(),
-            latest_version: new_version,
-        })
-    } else {
-        Err(format!("更新失败: {}", stderr))
-    }
-}
-
-// 从字符串中提取版本号
-fn extract_version(text: &str) -> Option<String> {
-    // 匹配类似 "1.2.3" 的版本号
-    let re = regex::Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
-    re.captures(text)?.get(1).map(|m| m.as_str().to_string())
-}
-
-// 比较版本号 (简单比较，返回 true 如果 latest > current)
-fn compare_versions(current: &str, latest: &str) -> bool {
-    let current_parts: Vec<u32> = current.split('.').filter_map(|s| s.parse().ok()).collect();
-    let latest_parts: Vec<u32> = latest.split('.').filter_map(|s| s.parse().ok()).collect();
-
-    for i in 0..3 {
-        let c = current_parts.get(i).copied().unwrap_or(0);
-        let l = latest_parts.get(i).copied().unwrap_or(0);
-
-        if l > c {
-            return true;
-        } else if l < c {
-            return false;
+            // 超时
+            Err("⏱️ 更新超时（120秒）\n\n可能的原因：\n• 网络连接不稳定\n• 服务器响应慢\n\n建议：\n1. 检查网络连接\n2. 重试更新\n3. 或尝试手动更新（详见文档）".to_string())
         }
     }
-
-    false
 }
 
 #[tauri::command]
 async fn configure_api(tool: String, _provider: String, api_key: String, base_url: Option<String>, profile_name: Option<String>) -> Result<(), String> {
-    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
+    #[cfg(debug_assertions)]
+    println!("Configuring {} (using ConfigService)", tool);
+
+    // 获取工具定义
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| format!("❌ 未知的工具: {}", tool))?;
+
+    // 获取 base_url，使用默认值
     let base_url_str = base_url.unwrap_or_else(|| "https://jp.duckcoding.com".to_string());
 
-    match tool.as_str() {
-        "claude-code" => {
-            let config_dir = home_dir.join(".claude");
-            let config_path = config_dir.join("settings.json");
-
-            // 确保目录存在
-            fs::create_dir_all(&config_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
-
-            // 读取现有配置
-            let mut config: Value = if config_path.exists() {
-                let content = fs::read_to_string(&config_path)
-                    .map_err(|e| format!("Failed to read config: {}", e))?;
-                serde_json::from_str(&content).unwrap_or(Value::Object(Map::new()))
-            } else {
-                Value::Object(Map::new())
-            };
-
-            // 确保有 env 对象
-            if !config.is_object() {
-                config = Value::Object(Map::new());
-            }
-            let config_obj = config.as_object_mut().unwrap();
-            if !config_obj.contains_key("env") {
-                config_obj.insert("env".to_string(), Value::Object(Map::new()));
-            }
-
-            // 更新 API 配置
-            let env_obj = config_obj.get_mut("env").unwrap().as_object_mut().unwrap();
-            env_obj.insert("ANTHROPIC_AUTH_TOKEN".to_string(), Value::String(api_key.clone()));
-            env_obj.insert("ANTHROPIC_BASE_URL".to_string(), Value::String(base_url_str.clone()));
-
-            // 写入配置
-            fs::write(&config_path, serde_json::to_string_pretty(&config).unwrap())
-                .map_err(|e| format!("Failed to write config: {}", e))?;
-
-            // 如果有 profile_name，保存备份
-            if let Some(profile) = profile_name {
-                if !profile.is_empty() {
-                    let backup_path = config_dir.join(format!("settings.{}.json", profile));
-                    let backup_config = serde_json::json!({
-                        "env": {
-                            "ANTHROPIC_AUTH_TOKEN": api_key,
-                            "ANTHROPIC_BASE_URL": base_url_str
-                        }
-                    });
-                    fs::write(&backup_path, serde_json::to_string_pretty(&backup_config).unwrap())
-                        .map_err(|e| format!("Failed to write backup: {}", e))?;
-                }
-            }
-        },
-        "codex" => {
-            println!("Configuring CodeX directly in Rust (no cli.js)...");
-            let config_dir = home_dir.join(".codex");
-            let config_path = config_dir.join("config.toml");
-            let auth_path = config_dir.join("auth.json");
-
-            // 确保目录存在
-            fs::create_dir_all(&config_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
-
-            // 读取现有config.toml
-            let mut config_table: toml::map::Map<String, toml::Value> = if config_path.exists() {
-                let content = fs::read_to_string(&config_path)
-                    .map_err(|e| format!("Failed to read config.toml: {}", e))?;
-                toml::from_str(&content).unwrap_or_else(|_| toml::map::Map::new())
-            } else {
-                toml::map::Map::new()
-            };
-
-            // 设置基本配置
-            config_table.insert("model_provider".to_string(), toml::Value::String("duckcoding".to_string()));
-            config_table.insert("model".to_string(), toml::Value::String("gpt-5-codex".to_string()));
-            config_table.insert("model_reasoning_effort".to_string(), toml::Value::String("high".to_string()));
-            config_table.insert("network_access".to_string(), toml::Value::String("enabled".to_string()));
-            config_table.insert("disable_response_storage".to_string(), toml::Value::Boolean(true));
-
-            // 设置model_providers
-            let mut providers_table = toml::map::Map::new();
-            let mut duckcoding_provider = toml::map::Map::new();
-            duckcoding_provider.insert("name".to_string(), toml::Value::String("duckcoding".to_string()));
-            duckcoding_provider.insert("base_url".to_string(), toml::Value::String(
-                if base_url_str.ends_with("/v1") {
-                    base_url_str.clone()
-                } else {
-                    format!("{}/v1", base_url_str)
-                }
-            ));
-            duckcoding_provider.insert("wire_api".to_string(), toml::Value::String("responses".to_string()));
-            duckcoding_provider.insert("requires_openai_auth".to_string(), toml::Value::Boolean(true));
-
-            providers_table.insert("duckcoding".to_string(), toml::Value::Table(duckcoding_provider));
-            config_table.insert("model_providers".to_string(), toml::Value::Table(providers_table));
-
-            // 写入config.toml
-            let toml_string = toml::to_string_pretty(&config_table)
-                .map_err(|e| format!("Failed to serialize TOML: {}", e))?;
-            fs::write(&config_path, toml_string)
-                .map_err(|e| format!("Failed to write config.toml: {}", e))?;
-            println!("CodeX config.toml written successfully");
-
-            // 写入auth.json
-            let auth_data = serde_json::json!({
-                "OPENAI_API_KEY": api_key
-            });
-            fs::write(&auth_path, serde_json::to_string_pretty(&auth_data).unwrap())
-                .map_err(|e| format!("Failed to write auth.json: {}", e))?;
-            println!("CodeX auth.json written successfully");
-
-            // 如果有profile_name，保存备份
-            if let Some(profile) = &profile_name {
-                if !profile.is_empty() {
-                    println!("Saving CodeX backup for profile: {}", profile);
-
-                    // 备份config
-                    let backup_config_path = config_dir.join(format!("config.{}.toml", profile));
-                    fs::write(&backup_config_path, toml::to_string_pretty(&config_table).unwrap())
-                        .map_err(|e| format!("Failed to write backup config: {}", e))?;
-
-                    // 备份auth
-                    let backup_auth_path = config_dir.join(format!("auth.{}.json", profile));
-                    fs::write(&backup_auth_path, serde_json::to_string_pretty(&auth_data).unwrap())
-                        .map_err(|e| format!("Failed to write backup auth: {}", e))?;
-
-                    println!("CodeX backup saved: config.{}.toml, auth.{}.json", profile, profile);
-                }
-            }
-        },
-        "gemini-cli" => {
-            let config_dir = home_dir.join(".gemini");
-            let env_path = config_dir.join(".env");
-
-            // 确保目录存在
-            fs::create_dir_all(&config_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
-
-            // 读取现有 .env 文件
-            let mut env_vars = std::collections::HashMap::new();
-            if env_path.exists() {
-                let content = fs::read_to_string(&env_path)
-                    .map_err(|e| format!("Failed to read .env: {}", e))?;
-                for line in content.lines() {
-                    let line = line.trim();
-                    if !line.is_empty() && !line.starts_with('#') {
-                        if let Some((key, value)) = line.split_once('=') {
-                            env_vars.insert(key.trim().to_string(), value.trim().to_string());
-                        }
-                    }
-                }
-            }
-
-            // 更新 API 相关的环境变量
-            env_vars.insert("GOOGLE_GEMINI_BASE_URL".to_string(), base_url_str.clone());
-            env_vars.insert("GEMINI_API_KEY".to_string(), api_key.clone());
-            if !env_vars.contains_key("GEMINI_MODEL") {
-                env_vars.insert("GEMINI_MODEL".to_string(), "gemini-2.5-pro".to_string());
-            }
-
-            // 写入 .env 文件
-            let env_content: String = env_vars.iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect::<Vec<_>>()
-                .join("\n") + "\n";
-
-            fs::write(&env_path, env_content)
-                .map_err(|e| format!("Failed to write .env: {}", e))?;
-
-            // 如果有 profile_name，保存备份
-            if let Some(profile) = profile_name {
-                if !profile.is_empty() {
-                    let backup_env_path = config_dir.join(format!(".env.{}", profile));
-                    let backup_content = format!(
-                        "GOOGLE_GEMINI_BASE_URL={}\nGEMINI_API_KEY={}\nGEMINI_MODEL=gemini-2.5-pro\n",
-                        base_url_str, api_key
-                    );
-                    fs::write(&backup_env_path, backup_content)
-                        .map_err(|e| format!("Failed to write backup .env: {}", e))?;
-                }
-            }
-        },
-        _ => return Err(format!("Unknown tool: {}", tool))
-    }
+    // 使用 ConfigService 应用配置
+    ConfigService::apply_config(
+        &tool_obj,
+        &api_key,
+        &base_url_str,
+        profile_name.as_deref(),
+    ).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
 async fn list_profiles(tool: String) -> Result<Vec<String>, String> {
-    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
-    let mut profiles = Vec::new();
+    #[cfg(debug_assertions)]
+    println!("Listing profiles for {} (using ConfigService)", tool);
 
-    match tool.as_str() {
-        "claude-code" => {
-            let config_dir = home_dir.join(".claude");
-            if !config_dir.exists() {
-                return Ok(profiles);
-            }
+    // 获取工具定义
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| format!("❌ 未知的工具: {}", tool))?;
 
-            // 查找 settings.{profile}.json 文件
-            if let Ok(entries) = fs::read_dir(&config_dir) {
-                for entry in entries.flatten() {
-                    let file_name = entry.file_name();
-                    let file_name_str = file_name.to_string_lossy();
-
-                    // 匹配 settings.{profile}.json 格式
-                    if file_name_str.starts_with("settings.") && file_name_str.ends_with(".json") {
-                        let profile_name = file_name_str
-                            .strip_prefix("settings.")
-                            .and_then(|s| s.strip_suffix(".json"));
-                        if let Some(name) = profile_name {
-                            profiles.push(name.to_string());
-                        }
-                    }
-                }
-            }
-        },
-        "codex" => {
-            let config_dir = home_dir.join(".codex");
-            if !config_dir.exists() {
-                return Ok(profiles);
-            }
-
-            // 查找 config.{profile}.toml 文件
-            if let Ok(entries) = fs::read_dir(&config_dir) {
-                for entry in entries.flatten() {
-                    let file_name = entry.file_name();
-                    let file_name_str = file_name.to_string_lossy();
-
-                    // 匹配 config.{profile}.toml 格式
-                    if file_name_str.starts_with("config.") && file_name_str.ends_with(".toml") {
-                        let profile_name = file_name_str
-                            .strip_prefix("config.")
-                            .and_then(|s| s.strip_suffix(".toml"));
-                        if let Some(name) = profile_name {
-                            profiles.push(name.to_string());
-                        }
-                    }
-                }
-            }
-        },
-        "gemini-cli" => {
-            let config_dir = home_dir.join(".gemini");
-            if !config_dir.exists() {
-                return Ok(profiles);
-            }
-
-            // 查找 .env.{profile} 文件
-            if let Ok(entries) = fs::read_dir(&config_dir) {
-                for entry in entries.flatten() {
-                    let file_name = entry.file_name();
-                    let file_name_str = file_name.to_string_lossy();
-
-                    // 匹配 .env.{profile} 格式
-                    if file_name_str.starts_with(".env.") {
-                        let profile_name = file_name_str.strip_prefix(".env.");
-                        if let Some(name) = profile_name {
-                            profiles.push(name.to_string());
-                        }
-                    }
-                }
-            }
-        },
-        _ => return Err(format!("Unknown tool: {}", tool))
-    }
-
-    Ok(profiles)
+    // 使用 ConfigService 列出配置
+    ConfigService::list_profiles(&tool_obj)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn switch_profile(tool: String, profile: String) -> Result<(), String> {
-    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
+    #[cfg(debug_assertions)]
+    println!("Switching profile for {} to {} (using ConfigService)", tool, profile);
 
-    match tool.as_str() {
-        "claude-code" => {
-            let config_dir = home_dir.join(".claude");
-            let backup_path = config_dir.join(format!("settings.{}.json", profile));
-            let active_path = config_dir.join("settings.json");
+    // 获取工具定义
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| format!("❌ 未知的工具: {}", tool))?;
 
-            if !backup_path.exists() {
-                return Err(format!("Backup config not found: {:?}", backup_path));
-            }
-
-            // 读取备份配置
-            let backup_content = fs::read_to_string(&backup_path)
-                .map_err(|e| format!("Failed to read backup config: {}", e))?;
-            let backup_config: Value = serde_json::from_str(&backup_content)
-                .map_err(|e| format!("Failed to parse backup config: {}", e))?;
-
-            // 读取当前配置
-            let mut active_config: Value = if active_path.exists() {
-                let content = fs::read_to_string(&active_path)
-                    .map_err(|e| format!("Failed to read active config: {}", e))?;
-                serde_json::from_str(&content).unwrap_or(Value::Object(Map::new()))
-            } else {
-                Value::Object(Map::new())
-            };
-
-            // 合并配置：只更新 API 相关字段
-            if let Some(backup_env) = backup_config.get("env") {
-                if !active_config.is_object() {
-                    active_config = Value::Object(Map::new());
-                }
-                let active_obj = active_config.as_object_mut().unwrap();
-                if !active_obj.contains_key("env") {
-                    active_obj.insert("env".to_string(), Value::Object(Map::new()));
-                }
-
-                let active_env = active_obj.get_mut("env").unwrap().as_object_mut().unwrap();
-                if let Some(backup_env_obj) = backup_env.as_object() {
-                    if let Some(token) = backup_env_obj.get("ANTHROPIC_AUTH_TOKEN") {
-                        active_env.insert("ANTHROPIC_AUTH_TOKEN".to_string(), token.clone());
-                    }
-                    if let Some(base_url) = backup_env_obj.get("ANTHROPIC_BASE_URL") {
-                        active_env.insert("ANTHROPIC_BASE_URL".to_string(), base_url.clone());
-                    }
-                }
-            }
-
-            // 写入配置
-            fs::write(&active_path, serde_json::to_string_pretty(&active_config).unwrap())
-                .map_err(|e| format!("Failed to write active config: {}", e))?;
-        },
-        "codex" => {
-            let config_dir = home_dir.join(".codex");
-            let backup_config_path = config_dir.join(format!("config.{}.toml", profile));
-            let active_config_path = config_dir.join("config.toml");
-            let backup_auth_path = config_dir.join(format!("auth.{}.json", profile));
-            let active_auth_path = config_dir.join("auth.json");
-
-            if !backup_config_path.exists() {
-                return Err(format!("Backup config not found: {:?}", backup_config_path));
-            }
-
-            // 读取备份的 config.toml
-            let backup_config_content = fs::read_to_string(&backup_config_path)
-                .map_err(|e| format!("Failed to read backup config: {}", e))?;
-            let backup_config: toml::Value = toml::from_str(&backup_config_content)
-                .map_err(|e| format!("Failed to parse backup TOML: {}", e))?;
-
-            // 读取当前的 config.toml
-            let mut active_config: toml::Value = if active_config_path.exists() {
-                let content = fs::read_to_string(&active_config_path)
-                    .map_err(|e| format!("Failed to read active config: {}", e))?;
-                toml::from_str(&content).unwrap_or(toml::Value::Table(toml::map::Map::new()))
-            } else {
-                toml::Value::Table(toml::map::Map::new())
-            };
-
-            // 合并配置：只更新必要字段
-            if let toml::Value::Table(ref backup_table) = backup_config {
-                if let toml::Value::Table(ref mut active_table) = active_config {
-                    // 更新顶层字段
-                    if let Some(provider) = backup_table.get("model_provider") {
-                        active_table.insert("model_provider".to_string(), provider.clone());
-                    }
-                    if let Some(model) = backup_table.get("model") {
-                        active_table.insert("model".to_string(), model.clone());
-                    }
-                    if let Some(effort) = backup_table.get("model_reasoning_effort") {
-                        active_table.insert("model_reasoning_effort".to_string(), effort.clone());
-                    }
-                    if let Some(network) = backup_table.get("network_access") {
-                        active_table.insert("network_access".to_string(), network.clone());
-                    }
-                    if let Some(storage) = backup_table.get("disable_response_storage") {
-                        active_table.insert("disable_response_storage".to_string(), storage.clone());
-                    }
-
-                    // 更新 model_providers
-                    if let Some(backup_providers) = backup_table.get("model_providers") {
-                        if !active_table.contains_key("model_providers") {
-                            active_table.insert("model_providers".to_string(), toml::Value::Table(toml::map::Map::new()));
-                        }
-                        if let Some(toml::Value::Table(active_providers)) = active_table.get_mut("model_providers") {
-                            if let toml::Value::Table(bp) = backup_providers {
-                                for (key, value) in bp {
-                                    active_providers.insert(key.clone(), value.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 写入 config.toml
-            let toml_string = toml::to_string_pretty(&active_config)
-                .map_err(|e| format!("Failed to serialize TOML: {}", e))?;
-            fs::write(&active_config_path, toml_string)
-                .map_err(|e| format!("Failed to write active config: {}", e))?;
-
-            // 更新 auth.json
-            if backup_auth_path.exists() {
-                let backup_auth_content = fs::read_to_string(&backup_auth_path)
-                    .map_err(|e| format!("Failed to read backup auth: {}", e))?;
-                let backup_auth: Value = serde_json::from_str(&backup_auth_content)
-                    .map_err(|e| format!("Failed to parse backup auth: {}", e))?;
-
-                let mut active_auth: Value = if active_auth_path.exists() {
-                    let content = fs::read_to_string(&active_auth_path)
-                        .map_err(|e| format!("Failed to read active auth: {}", e))?;
-                    serde_json::from_str(&content).unwrap_or(Value::Object(Map::new()))
-                } else {
-                    Value::Object(Map::new())
-                };
-
-                if let Some(backup_key) = backup_auth.get("OPENAI_API_KEY") {
-                    if let Value::Object(ref mut active_obj) = active_auth {
-                        active_obj.insert("OPENAI_API_KEY".to_string(), backup_key.clone());
-                    }
-                }
-
-                fs::write(&active_auth_path, serde_json::to_string_pretty(&active_auth).unwrap())
-                    .map_err(|e| format!("Failed to write active auth: {}", e))?;
-            }
-        },
-        "gemini-cli" => {
-            let config_dir = home_dir.join(".gemini");
-            let backup_env_path = config_dir.join(format!(".env.{}", profile));
-            let active_env_path = config_dir.join(".env");
-
-            if !backup_env_path.exists() {
-                return Err(format!("Backup .env not found: {:?}", backup_env_path));
-            }
-
-            // 读取备份的环境变量
-            let backup_content = fs::read_to_string(&backup_env_path)
-                .map_err(|e| format!("Failed to read backup .env: {}", e))?;
-            let mut backup_env = std::collections::HashMap::new();
-            for line in backup_content.lines() {
-                let line = line.trim();
-                if !line.is_empty() && !line.starts_with('#') {
-                    if let Some((key, value)) = line.split_once('=') {
-                        backup_env.insert(key.trim().to_string(), value.trim().to_string());
-                    }
-                }
-            }
-
-            // 读取当前的环境变量
-            let mut active_env = std::collections::HashMap::new();
-            if active_env_path.exists() {
-                let content = fs::read_to_string(&active_env_path)
-                    .map_err(|e| format!("Failed to read active .env: {}", e))?;
-                for line in content.lines() {
-                    let line = line.trim();
-                    if !line.is_empty() && !line.starts_with('#') {
-                        if let Some((key, value)) = line.split_once('=') {
-                            active_env.insert(key.trim().to_string(), value.trim().to_string());
-                        }
-                    }
-                }
-            }
-
-            // 合并：只更新 API 相关字段
-            if let Some(base_url) = backup_env.get("GOOGLE_GEMINI_BASE_URL") {
-                active_env.insert("GOOGLE_GEMINI_BASE_URL".to_string(), base_url.clone());
-            }
-            if let Some(api_key) = backup_env.get("GEMINI_API_KEY") {
-                active_env.insert("GEMINI_API_KEY".to_string(), api_key.clone());
-            }
-            if let Some(model) = backup_env.get("GEMINI_MODEL") {
-                active_env.insert("GEMINI_MODEL".to_string(), model.clone());
-            }
-
-            // 写回 .env
-            let env_content: String = active_env.iter()
-                .map(|(k, v)| format!("{}={}", k, v))
-                .collect::<Vec<_>>()
-                .join("\n") + "\n";
-
-            fs::write(&active_env_path, env_content)
-                .map_err(|e| format!("Failed to write active .env: {}", e))?;
-        },
-        _ => return Err(format!("Unknown tool: {}", tool))
-    }
+    // 使用 ConfigService 激活配置
+    ConfigService::activate_profile(&tool_obj, &profile)
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[tauri::command]
 async fn delete_profile(tool: String, profile: String) -> Result<(), String> {
+    #[cfg(debug_assertions)]
     println!("Deleting profile: tool={}, profile={}", tool, profile);
-    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
 
-    match tool.as_str() {
-        "claude-code" => {
-            let config_dir = home_dir.join(".claude");
-            let backup_path = config_dir.join(format!("settings.{}.json", profile));
-            println!("Claude Code backup path: {:?}", backup_path);
+    // 获取工具定义
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| format!("❌ 未知的工具: {}", tool))?;
 
-            if !backup_path.exists() {
-                let err = format!("配置文件不存在: {}", profile);
-                println!("Error: {}", err);
-                return Err(err);
-            }
+    // 使用 ConfigService 删除配置
+    ConfigService::delete_profile(&tool_obj, &profile)
+        .map_err(|e| e.to_string())?;
 
-            fs::remove_file(&backup_path)
-                .map_err(|e| {
-                    let err = format!("删除配置失败: {}", e);
-                    println!("Error: {}", err);
-                    err
-                })?;
-            println!("Successfully deleted Claude Code profile: {}", profile);
-        },
-        "codex" => {
-            let config_dir = home_dir.join(".codex");
-            let backup_config_path = config_dir.join(format!("config.{}.toml", profile));
-            let backup_auth_path = config_dir.join(format!("auth.{}.json", profile));
-            println!("CodeX config path: {:?}", backup_config_path);
-            println!("CodeX auth path: {:?}", backup_auth_path);
-
-            if !backup_config_path.exists() {
-                let err = format!("配置文件不存在: {}", profile);
-                println!("Error: {}", err);
-                return Err(err);
-            }
-
-            fs::remove_file(&backup_config_path)
-                .map_err(|e| {
-                    let err = format!("删除配置失败: {}", e);
-                    println!("Error: {}", err);
-                    err
-                })?;
-            println!("Deleted config.toml for profile: {}", profile);
-
-            if backup_auth_path.exists() {
-                fs::remove_file(&backup_auth_path)
-                    .map_err(|e| {
-                        let err = format!("删除认证文件失败: {}", e);
-                        println!("Error: {}", err);
-                        err
-                    })?;
-                println!("Deleted auth.json for profile: {}", profile);
-            }
-            println!("Successfully deleted CodeX profile: {}", profile);
-        },
-        "gemini-cli" => {
-            let config_dir = home_dir.join(".gemini");
-            let backup_env_path = config_dir.join(format!(".env.{}", profile));
-            let backup_settings_path = config_dir.join(format!("settings.{}.json", profile));
-
-            if !backup_env_path.exists() {
-                return Err(format!("配置文件不存在: {}", profile));
-            }
-
-            fs::remove_file(&backup_env_path)
-                .map_err(|e| format!("删除配置失败: {}", e))?;
-
-            if backup_settings_path.exists() {
-                fs::remove_file(&backup_settings_path)
-                    .map_err(|e| format!("删除设置文件失败: {}", e))?;
-            }
-        },
-        _ => return Err(format!("Unknown tool: {}", tool))
-    }
+    #[cfg(debug_assertions)]
+    println!("Successfully deleted profile: {}", profile);
 
     Ok(())
 }
@@ -1510,6 +454,7 @@ struct UpdateResult {
     has_update: bool,
     current_version: Option<String>,
     latest_version: Option<String>,
+    tool_id: Option<String>,  // 新增：工具ID，用于批量检查时识别工具
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -2063,7 +1008,7 @@ fn detect_profile_name(tool: &str, active_api_key: &str, active_base_url: &str, 
 
 #[tauri::command]
 async fn get_active_config(tool: String) -> Result<ActiveConfig, String> {
-    let home_dir = dirs::home_dir().ok_or("Failed to get home directory")?;
+    let home_dir = dirs::home_dir().ok_or("❌ 无法获取用户主目录")?;
 
     match tool.as_str() {
         "claude-code" => {
@@ -2077,9 +1022,9 @@ async fn get_active_config(tool: String) -> Result<ActiveConfig, String> {
             }
 
             let content = fs::read_to_string(&config_path)
-                .map_err(|e| format!("Failed to read config: {}", e))?;
+                .map_err(|e| format!("❌ 读取配置失败: {}", e))?;
             let config: Value = serde_json::from_str(&content)
-                .map_err(|e| format!("Failed to parse config: {}", e))?;
+                .map_err(|e| format!("❌ 解析配置失败: {}", e))?;
 
             let raw_api_key = config.get("env")
                 .and_then(|env| env.get("ANTHROPIC_AUTH_TOKEN"))
@@ -2121,9 +1066,9 @@ async fn get_active_config(tool: String) -> Result<ActiveConfig, String> {
             // 读取 auth.json
             if auth_path.exists() {
                 let content = fs::read_to_string(&auth_path)
-                    .map_err(|e| format!("Failed to read auth: {}", e))?;
+                    .map_err(|e| format!("❌ 读取认证文件失败: {}", e))?;
                 let auth: Value = serde_json::from_str(&content)
-                    .map_err(|e| format!("Failed to parse auth: {}", e))?;
+                    .map_err(|e| format!("❌ 解析认证文件失败: {}", e))?;
 
                 if let Some(key) = auth.get("OPENAI_API_KEY").and_then(|v| v.as_str()) {
                     raw_api_key = key.to_string();
@@ -2134,9 +1079,9 @@ async fn get_active_config(tool: String) -> Result<ActiveConfig, String> {
             // 读取 config.toml
             if config_path.exists() {
                 let content = fs::read_to_string(&config_path)
-                    .map_err(|e| format!("Failed to read config: {}", e))?;
+                    .map_err(|e| format!("❌ 读取配置文件失败: {}", e))?;
                 let config: toml::Value = toml::from_str(&content)
-                    .map_err(|e| format!("Failed to parse TOML: {}", e))?;
+                    .map_err(|e| format!("❌ 解析TOML失败: {}", e))?;
 
                 if let toml::Value::Table(table) = config {
                     if let Some(toml::Value::Table(providers)) = table.get("model_providers") {
@@ -2173,7 +1118,7 @@ async fn get_active_config(tool: String) -> Result<ActiveConfig, String> {
             }
 
             let content = fs::read_to_string(&env_path)
-                .map_err(|e| format!("Failed to read .env: {}", e))?;
+                .map_err(|e| format!("❌ 读取环境变量配置失败: {}", e))?;
 
             let mut raw_api_key = String::new();
             let mut api_key = "未配置".to_string();
@@ -2206,7 +1151,7 @@ async fn get_active_config(tool: String) -> Result<ActiveConfig, String> {
 
             Ok(ActiveConfig { api_key, base_url, profile_name })
         },
-        _ => Err(format!("Unknown tool: {}", tool))
+        _ => Err(format!("❌ 未知的工具: {}", tool))
     }
 }
 
@@ -2401,6 +1346,7 @@ fn main() {
             check_node_environment,
             install_tool,
             check_update,
+            check_all_updates,
             update_tool,
             configure_api,
             list_profiles,

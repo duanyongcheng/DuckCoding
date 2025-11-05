@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CheckCircle2, XCircle, Package, Settings as SettingsIcon, RefreshCw, LayoutDashboard, Loader2, AlertCircle, Save, ExternalLink, Info, ArrowRightLeft, Key, Sparkles, BarChart3, GripVertical } from "lucide-react";
-import { checkInstallations, checkNodeEnvironment, installTool, checkUpdate, updateTool, configureApi, listProfiles, switchProfile, getActiveConfig, saveGlobalConfig, getGlobalConfig, generateApiKeyForTool, getUsageStats, getUserQuota, type ToolStatus, type NodeEnvironment, type UpdateResult, type ActiveConfig, type GlobalConfig, type UsageStatsResult, type UserQuotaResult } from "@/lib/tauri-commands";
+import { checkInstallations, checkNodeEnvironment, installTool, checkAllUpdates, updateTool, configureApi, listProfiles, switchProfile, getActiveConfig, saveGlobalConfig, getGlobalConfig, generateApiKeyForTool, getUsageStats, getUserQuota, type ToolStatus, type NodeEnvironment, type ActiveConfig, type GlobalConfig, type UsageStatsResult, type UserQuotaResult } from "@/lib/tauri-commands";
 import {
   DndContext,
   closestCenter,
@@ -129,8 +129,6 @@ function App() {
   const [apiKey, setApiKey] = useState<string>("");
   const [baseUrl, setBaseUrl] = useState<string>("");
   const [profileName, setProfileName] = useState<string>("");
-  const [configMessage, setConfigMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const configMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 配置切换状态
   const [profiles, setProfiles] = useState<Record<string, string[]>>({});
@@ -335,9 +333,6 @@ function App() {
       if (updateMessageTimeoutRef.current) {
         clearTimeout(updateMessageTimeoutRef.current);
       }
-      if (configMessageTimeoutRef.current) {
-        clearTimeout(configMessageTimeoutRef.current);
-      }
     };
   }, []);
 
@@ -360,11 +355,8 @@ function App() {
       const status = await checkInstallations();
       setTools(status);
 
-      // 自动检查已安装工具的更新
-      const installedTools = status.filter(t => t.installed);
-      if (installedTools.length > 0) {
-        checkUpdatesForInstalledTools(installedTools);
-      }
+      // 自动检查已安装工具的更新（批量 API 会自动处理所有工具）
+      checkUpdatesForInstalledTools();
     } catch (error) {
       console.error("Failed to check installations:", error);
       setTools([
@@ -378,28 +370,19 @@ function App() {
   };
 
   // 自动检查已安装工具的更新（后台静默检查）
-  const checkUpdatesForInstalledTools = async (installedTools: ToolStatus[]) => {
+  const checkUpdatesForInstalledTools = async () => {
     try {
-      const updatePromises = installedTools.map(async (tool) => {
-        try {
-          const result = await checkUpdate(tool.id);
-          return { toolId: tool.id, result };
-        } catch (error) {
-          console.error(`Failed to check update for ${tool.id}:`, error);
-          return { toolId: tool.id, result: null };
-        }
-      });
+      // 使用批量 API 一次性检查所有工具
+      const results = await checkAllUpdates();
 
-      const results = await Promise.all(updatePromises);
-
-      // 更新工具状态，添加更新信息
+      // 更新工具状态，添加更新信息（仅限已安装的工具）
       setTools(prevTools => prevTools.map(tool => {
-        const updateInfo = results.find(r => r.toolId === tool.id);
-        if (updateInfo?.result) {
+        const updateInfo = results.find(r => r.tool_id === tool.id);
+        if (tool.installed && updateInfo && updateInfo.success) {
           return {
             ...tool,
-            hasUpdate: updateInfo.result.has_update,
-            latestVersion: updateInfo.result.latest_version || undefined
+            hasUpdate: updateInfo.has_update,
+            latestVersion: updateInfo.latest_version || undefined
           };
         }
         return tool;
@@ -595,24 +578,21 @@ function App() {
         updateMessageTimeoutRef.current = null;
       }
 
-      const updatedTools = await Promise.all(
-        tools.map(async (tool) => {
-          if (tool.installed) {
-            try {
-              const updateInfo: UpdateResult = await checkUpdate(tool.id);
-              return {
-                ...tool,
-                hasUpdate: updateInfo.has_update,
-                latestVersion: updateInfo.latest_version || undefined,
-              };
-            } catch (error) {
-              console.error("Failed to check updates for " + tool.id, error);
-              return tool;
-            }
-          }
-          return tool;
-        })
-      );
+      // 使用批量 API 一次性检查所有工具
+      const results = await checkAllUpdates();
+
+      // 更新工具状态，根据批量结果更新
+      const updatedTools = tools.map((tool) => {
+        const updateInfo = results.find(r => r.tool_id === tool.id);
+        if (updateInfo && updateInfo.success && tool.installed) {
+          return {
+            ...tool,
+            hasUpdate: updateInfo.has_update,
+            latestVersion: updateInfo.latest_version || undefined,
+          };
+        }
+        return tool;
+      });
       setTools(updatedTools);
 
       // Count updates available
@@ -694,16 +674,7 @@ function App() {
 
   const handleConfigureApi = async () => {
     if (!selectedTool || !apiKey) {
-      setConfigMessage({ type: 'error', text: "请填写必填项：\n" + (!selectedTool ? "- 请选择工具\n" : "") + (!apiKey ? "- 请输入 API Key" : "") });
-
-      // 清除之前的定时器
-      if (configMessageTimeoutRef.current) {
-        clearTimeout(configMessageTimeoutRef.current);
-      }
-      // 5秒后清除消息
-      configMessageTimeoutRef.current = setTimeout(() => {
-        setConfigMessage(null);
-      }, 5000);
+      alert("❌ 请填写必填项\n\n" + (!selectedTool ? "• 请选择工具\n" : "") + (!apiKey ? "• 请输入 API Key" : ""));
       return;
     }
 
@@ -717,12 +688,6 @@ function App() {
         profileName || undefined
       );
 
-      // 设置成功消息
-      setConfigMessage({
-        type: 'success',
-        text: `✅ ${selectedTool === 'claude-code' ? 'Claude Code' : selectedTool === 'codex' ? 'CodeX' : 'Gemini CLI'} 配置保存成功！${profileName ? `\n配置名称: ${profileName}` : ''}`
-      });
-
       // 清空表单
       setApiKey("");
       setBaseUrl("");
@@ -731,26 +696,12 @@ function App() {
       // 重新加载配置列表
       await loadAllProfiles();
 
-      // 清除之前的定时器
-      if (configMessageTimeoutRef.current) {
-        clearTimeout(configMessageTimeoutRef.current);
-      }
-      // 5秒后清除消息
-      configMessageTimeoutRef.current = setTimeout(() => {
-        setConfigMessage(null);
-      }, 5000);
+      // 弹窗提示成功
+      const toolName = selectedTool === 'claude-code' ? 'Claude Code' : selectedTool === 'codex' ? 'CodeX' : 'Gemini CLI';
+      alert(`✅ ${toolName} 配置保存成功！${profileName ? `\n\n配置名称: ${profileName}` : ''}`);
     } catch (error) {
       console.error("Failed to configure API:", error);
-      setConfigMessage({ type: 'error', text: "配置失败: " + error });
-
-      // 清除之前的定时器
-      if (configMessageTimeoutRef.current) {
-        clearTimeout(configMessageTimeoutRef.current);
-      }
-      // 5秒后清除消息
-      configMessageTimeoutRef.current = setTimeout(() => {
-        setConfigMessage(null);
-      }, 5000);
+      alert("❌ 配置失败\n\n" + error);
     } finally {
       setConfiguring(false);
     }
@@ -770,10 +721,10 @@ function App() {
         console.error("Failed to reload active config", error);
       }
 
-      alert("配置切换成功！");
+      alert("✅ 配置切换成功！");
     } catch (error) {
       console.error("Failed to switch profile:", error);
-      alert("切换失败: " + error);
+      alert("❌ 切换失败\n\n" + error);
     } finally {
       setSwitching(false);
     }
@@ -1162,32 +1113,6 @@ function App() {
                   <h2 className="text-2xl font-semibold mb-1">配置 API</h2>
                   <p className="text-sm text-muted-foreground">配置 DuckCoding API 或自定义 API 端点</p>
                 </div>
-
-                {/* 配置成功/失败消息 */}
-                {configMessage && (
-                  <div className={`mb-4 p-4 rounded-lg border ${
-                    configMessage.type === 'success'
-                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800'
-                      : 'bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950 dark:to-rose-950 border-red-200 dark:border-red-800'
-                  }`}>
-                    <div className="flex items-start gap-3">
-                      {configMessage.type === 'success' ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-                      ) : (
-                        <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                      )}
-                      <div className="flex-1">
-                        <p className={`text-sm whitespace-pre-line ${
-                          configMessage.type === 'success'
-                            ? 'text-green-800 dark:text-green-200'
-                            : 'text-red-800 dark:text-red-200'
-                        }`}>
-                          {configMessage.text}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {installedTools.length > 0 ? (
                   <div className="grid gap-4">

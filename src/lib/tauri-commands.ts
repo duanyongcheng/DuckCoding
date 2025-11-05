@@ -19,6 +19,7 @@ export interface UpdateResult {
   has_update: boolean;
   current_version: string | null;
   latest_version: string | null;
+  tool_id?: string;
 }
 
 export interface ActiveConfig {
@@ -85,6 +86,10 @@ export async function installTool(tool: string, method: string): Promise<Install
 
 export async function checkUpdate(tool: string): Promise<UpdateResult> {
   return await invoke<UpdateResult>("check_update", { tool });
+}
+
+export async function checkAllUpdates(): Promise<UpdateResult[]> {
+  return await invoke<UpdateResult[]>("check_all_updates");
 }
 
 export async function updateTool(tool: string): Promise<UpdateResult> {

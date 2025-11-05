@@ -51,10 +51,10 @@
 
 ❌ **不支持**:
 - **Windows WSL / Linux WSL**: WSL环境无法运行GUI桌面应用
-  - **解决方案**: WSL用户请使用Windows原生版本（.msi/.exe）或使用CLI模式
+  - **解决方案**: WSL用户请使用Windows原生版本（.msi/.exe）
 
 📝 **CLI模式支持**:
-如果你只需要命令行功能（不需要GUI），可以直接运行 `node cli.js`，支持所有平台包括WSL。
+如果你只需要命令行功能（不需要GUI），可以使用 Rust CLI（需要从源码编译 `cargo build --features cli --bin duckcoding`），支持所有平台包括WSL。
 
 ## 🎯 使用方法
 
@@ -134,11 +134,22 @@ DuckCoding 要求每个工具使用对应的专用分组令牌：
 
 ## 🛠️ 技术栈
 
+### 桌面应用
 - **前端**: React 18 + TypeScript + Tailwind CSS
-- **桌面框架**: Tauri 2.0 (Rust)
+- **桌面框架**: Tauri 2.0
+- **后端**: Rust（完整服务层架构）
+  - InstallerService - 工具安装和版本管理
+  - VersionService - 版本检查（npm registry API）
+  - ConfigService - 配置文件管理（增量更新）
+  - CommandExecutor - 跨平台命令执行
 - **图表**: Recharts
 - **UI 组件**: Shadcn/ui + Radix UI
 - **构建工具**: Vite
+
+### Rust CLI (可选)
+- **CLI 框架**: clap + inquire
+- **共享服务层**: 与桌面应用相同的 Rust 服务层
+- **编译**: `cargo build --features cli --bin duckcoding`
 
 ## 📖 配置文件说明
 
@@ -192,7 +203,13 @@ DuckCoding 要求每个工具使用对应的专用分组令牌：
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=DuckCoding-dev/DuckCoding&type=Date)](https://star-history.com/#DuckCoding-dev/DuckCoding&Date)
+<a href="https://star-history.com/#DuckCoding-dev/DuckCoding&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=DuckCoding-dev/DuckCoding&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=DuckCoding-dev/DuckCoding&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=DuckCoding-dev/DuckCoding&type=Date" />
+ </picture>
+</a>
 
 </div>
 
