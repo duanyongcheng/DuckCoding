@@ -9,6 +9,7 @@ pub struct VersionInfo {
     pub tool_id: String,
     pub installed_version: Option<String>,
     pub latest_version: Option<String>,
+    pub mirror_version: Option<String>,  // 镜像实际可安装的版本
     pub has_update: bool,
     pub source: VersionSource,
 }
@@ -38,7 +39,8 @@ struct ToolVersionFromMirror {
     id: String,
     #[allow(dead_code)]
     name: Option<String>,
-    latest_version: String,
+    latest_version: String,  // 官方最新版本（通常来自 npm）
+    mirror_version: Option<String>,  // 镜像实际可安装的版本
     #[allow(dead_code)]
     release_date: Option<String>,
     #[allow(dead_code)]
@@ -82,16 +84,19 @@ impl VersionService {
 
         // 1. 尝试从镜像站获取最新版本
         match self.get_latest_from_mirror(&tool.id).await {
-            Ok(latest_version) => {
+            Ok((latest_version, mirror_version)) => {
+                // 使用镜像版本判断是否有更新（因为这是实际能安装的版本）
+                let version_to_compare = mirror_version.as_ref().unwrap_or(&latest_version);
                 let has_update = Self::compare_versions(
                     installed_version.as_deref(),
-                    &latest_version,
+                    version_to_compare,
                 );
 
                 return Ok(VersionInfo {
                     tool_id: tool.id.clone(),
                     installed_version,
                     latest_version: Some(latest_version),
+                    mirror_version,
                     has_update,
                     source: VersionSource::Mirror,
                 });
@@ -111,14 +116,15 @@ impl VersionService {
         Ok(VersionInfo {
             tool_id: tool.id.clone(),
             installed_version,
-            latest_version: Some(latest_version),
+            latest_version: Some(latest_version.clone()),
+            mirror_version: None,  // 本地检查没有镜像版本信息
             has_update,
             source: VersionSource::MirrorFallback,
         })
     }
 
     /// 从镜像站 API 获取最新版本
-    async fn get_latest_from_mirror(&self, tool_id: &str) -> Result<String> {
+    async fn get_latest_from_mirror(&self, tool_id: &str) -> Result<(String, Option<String>)> {
         let response = reqwest::get(&self.mirror_api_url)
             .await?
             .json::<MirrorApiResponse>()
@@ -128,7 +134,7 @@ impl VersionService {
             .tools
             .iter()
             .find(|t| t.id == tool_id)
-            .map(|t| t.latest_version.clone())
+            .map(|t| (t.latest_version.clone(), t.mirror_version.clone()))
             .ok_or_else(|| anyhow::anyhow!("工具 {} 不在镜像站 API 中", tool_id))
     }
 
@@ -211,19 +217,25 @@ impl VersionService {
 
                     // 从镜像站数据中查找该工具
                     if let Some(mirror_tool) = mirror_data.tools.iter().find(|t| t.id == tool.id) {
+                        // 使用镜像版本判断是否有更新（这是实际能安装的版本）
+                        let version_to_compare = mirror_tool.mirror_version.as_ref()
+                            .unwrap_or(&mirror_tool.latest_version);
+
                         let has_update = Self::compare_versions(
                             installed_version.as_deref(),
-                            &mirror_tool.latest_version,
+                            version_to_compare,
                         );
 
                         #[cfg(debug_assertions)]
-                        println!("  {} - 已安装: {:?}, 最新: {}, 有更新: {}",
-                            tool.id, installed_version, mirror_tool.latest_version, has_update);
+                        println!("  {} - 已安装: {:?}, 官方最新: {}, 镜像版本: {:?}, 有更新: {}",
+                            tool.id, installed_version, mirror_tool.latest_version,
+                            mirror_tool.mirror_version, has_update);
 
                         results.push(VersionInfo {
                             tool_id: tool.id.clone(),
                             installed_version,
                             latest_version: Some(mirror_tool.latest_version.clone()),
+                            mirror_version: mirror_tool.mirror_version.clone(),
                             has_update,
                             source: VersionSource::Mirror,
                         });
@@ -265,6 +277,7 @@ impl VersionService {
             tool_id: tool.id.clone(),
             installed_version,
             latest_version: Some(latest_version),
+            mirror_version: None,  // 本地检查没有镜像版本信息
             has_update,
             source: VersionSource::MirrorFallback,
         })
