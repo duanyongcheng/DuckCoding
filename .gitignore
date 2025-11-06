@@ -28,7 +28,8 @@ build/
 
 # Tauri
 src-tauri/target/
-src-tauri/Cargo.lock
+# Tauri's Cargo.lock should be committed for applications
+# src-tauri/Cargo.lock
 
 # TypeScript
 *.tsbuildinfo
