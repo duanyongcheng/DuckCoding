@@ -33,6 +33,12 @@ export interface ActiveConfig {
 export interface GlobalConfig {
   user_id: string;
   system_token: string;
+  proxy_enabled?: boolean;
+  proxy_type?: 'http' | 'https' | 'socks5';
+  proxy_host?: string;
+  proxy_port?: string;
+  proxy_username?: string;
+  proxy_password?: string;
 }
 
 export interface GenerateApiKeyResult {
@@ -136,15 +142,31 @@ export async function getActiveConfig(tool: string): Promise<ActiveConfig> {
   return await invoke<ActiveConfig>('get_active_config', { tool });
 }
 
-export async function saveGlobalConfig(userId: string, systemToken: string): Promise<void> {
-  return await invoke<void>('save_global_config', {
-    userId: userId,
-    systemToken: systemToken,
-  });
+export async function saveGlobalConfig(config: GlobalConfig): Promise<void> {
+  return await invoke<void>('save_global_config', { config });
 }
 
 export async function getGlobalConfig(): Promise<GlobalConfig | null> {
   return await invoke<GlobalConfig | null>('get_global_config');
+}
+
+export async function getCurrentProxy(): Promise<string | null> {
+  return await invoke<string | null>('get_current_proxy');
+}
+
+export async function applyProxyNow(): Promise<string | null> {
+  return await invoke<string | null>('apply_proxy_now');
+}
+
+export interface TestProxyResult {
+  success: boolean;
+  status: number;
+  url?: string | null;
+  error?: string | null;
+}
+
+export async function testProxyRequest(): Promise<TestProxyResult> {
+  return await invoke<TestProxyResult>('test_proxy_request');
 }
 
 export async function generateApiKeyForTool(tool: string): Promise<GenerateApiKeyResult> {

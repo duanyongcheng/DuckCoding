@@ -5,7 +5,13 @@ pub mod services;
 pub mod utils;
 
 pub use models::*;
-pub use services::*;
+// Explicitly re-export only selected service types to avoid ambiguous glob re-exports
+pub use services::config::ConfigService;
+pub use services::installer::InstallerService;
+pub use models::InstallMethod; // InstallMethod is defined in models (tool.rs) — re-export from models
+pub use services::version::VersionService;
+pub use services::proxy::ProxyService;
+
 pub use utils::*;
 
 // 重新导出常用类型

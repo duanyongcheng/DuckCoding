@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use std::env;
 use std::fs;
@@ -15,6 +15,87 @@ use tauri::{
 
 // 导入服务层
 use duckcoding::{ConfigService, InstallMethod, InstallerService, Tool, VersionService};
+// Use the shared GlobalConfig from the library crate (models::config)
+use duckcoding::GlobalConfig;
+
+// DuckCoding API 响应结构
+#[derive(serde::Deserialize, Debug)]
+struct TokenData {
+    id: i64,
+    key: String,
+    #[allow(dead_code)]
+    name: String,
+    #[allow(dead_code)]
+    group: String,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct ApiResponse {
+    success: bool,
+    message: String,
+    data: Option<Vec<TokenData>>,
+}
+
+#[derive(serde::Serialize)]
+struct GenerateApiKeyResult {
+    success: bool,
+    message: String,
+    api_key: Option<String>,
+}
+
+// 用量统计数据结构
+#[derive(serde::Deserialize, Serialize, Debug, Clone)]
+struct UsageData {
+    id: i64,
+    user_id: i64,
+    username: String,
+    model_name: String,
+    created_at: i64,
+    token_used: i64,
+    count: i64,
+    quota: i64,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct UsageApiResponse {
+    success: bool,
+    message: String,
+    data: Option<Vec<UsageData>>,
+}
+
+#[derive(serde::Serialize)]
+struct UsageStatsResult {
+    success: bool,
+    message: String,
+    data: Vec<UsageData>,
+}
+
+// 用户信息数据结构
+#[derive(serde::Deserialize, Serialize, Debug)]
+struct UserInfo {
+    id: i64,
+    username: String,
+    quota: i64,
+    used_quota: i64,
+    request_count: i64,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct UserApiResponse {
+    success: bool,
+    message: String,
+    data: Option<UserInfo>,
+}
+
+#[derive(serde::Serialize)]
+struct UserQuotaResult {
+    success: bool,
+    message: String,
+    total_quota: f64,
+    used_quota: f64,
+    remaining_quota: f64,
+    request_count: i64,
+}
 
 // Windows特定：隐藏命令行窗口
 #[cfg(target_os = "windows")]
@@ -193,12 +274,22 @@ async fn check_node_environment() -> Result<NodeEnvironment, String> {
     })
 }
 
+// 辅助函数：从全局配置应用代理
+async fn apply_proxy_if_configured() {
+    if let Ok(Some(config)) = get_global_config().await {
+        duckcoding::ProxyService::apply_proxy_from_config(&config);
+    }
+}
+
 #[tauri::command]
 async fn install_tool(
     tool: String,
     method: String,
     force: Option<bool>,
 ) -> Result<InstallResult, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     let force = force.unwrap_or(false);
     #[cfg(debug_assertions)]
     println!(
@@ -247,6 +338,9 @@ async fn install_tool(
 // 只检查更新，不执行
 #[tauri::command]
 async fn check_update(tool: String) -> Result<UpdateResult, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     #[cfg(debug_assertions)]
     println!("Checking updates for {} (using VersionService)", tool);
 
@@ -284,6 +378,9 @@ async fn check_update(tool: String) -> Result<UpdateResult, String> {
 // 批量检查所有工具更新（优化：单次网络请求）
 #[tauri::command]
 async fn check_all_updates() -> Result<Vec<UpdateResult>, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     #[cfg(debug_assertions)]
     println!("Checking updates for all tools (batch mode)");
 
@@ -309,6 +406,9 @@ async fn check_all_updates() -> Result<Vec<UpdateResult>, String> {
 
 #[tauri::command]
 async fn update_tool(tool: String, force: Option<bool>) -> Result<UpdateResult, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     let force = force.unwrap_or(false);
     #[cfg(debug_assertions)]
     println!(
@@ -495,91 +595,6 @@ struct ActiveConfig {
     profile_name: Option<String>, // 当前配置的名称
 }
 
-// 全局配置结构
-#[derive(Serialize, Deserialize, Clone)]
-struct GlobalConfig {
-    user_id: String,
-    system_token: String,
-}
-
-// DuckCoding API 响应结构
-#[derive(Deserialize, Debug)]
-struct TokenData {
-    id: i64,
-    key: String,
-    #[allow(dead_code)]
-    name: String,
-    #[allow(dead_code)]
-    group: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct ApiResponse {
-    success: bool,
-    message: String,
-    data: Option<Vec<TokenData>>,
-}
-
-#[derive(Serialize)]
-struct GenerateApiKeyResult {
-    success: bool,
-    message: String,
-    api_key: Option<String>,
-}
-
-// 用量统计数据结构
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct UsageData {
-    id: i64,
-    user_id: i64,
-    username: String,
-    model_name: String,
-    created_at: i64,
-    token_used: i64,
-    count: i64,
-    quota: i64,
-}
-
-#[derive(Deserialize, Debug)]
-struct UsageApiResponse {
-    success: bool,
-    message: String,
-    data: Option<Vec<UsageData>>,
-}
-
-#[derive(Serialize)]
-struct UsageStatsResult {
-    success: bool,
-    message: String,
-    data: Vec<UsageData>,
-}
-
-// 用户信息数据结构
-#[derive(Deserialize, Serialize, Debug)]
-struct UserInfo {
-    id: i64,
-    username: String,
-    quota: i64,
-    used_quota: i64,
-    request_count: i64,
-}
-
-#[derive(Deserialize, Debug)]
-struct UserApiResponse {
-    success: bool,
-    message: String,
-    data: Option<UserInfo>,
-}
-
-#[derive(Serialize)]
-struct UserQuotaResult {
-    success: bool,
-    message: String,
-    total_quota: f64,
-    used_quota: f64,
-    remaining_quota: f64,
-    request_count: i64,
-}
 
 // 全局配置辅助函数
 fn get_global_config_path() -> Result<PathBuf, String> {
@@ -594,13 +609,9 @@ fn get_global_config_path() -> Result<PathBuf, String> {
 
 // Tauri命令：保存全局配置
 #[tauri::command]
-async fn save_global_config(user_id: String, system_token: String) -> Result<(), String> {
-    println!("save_global_config called with user_id: {}", user_id);
+async fn save_global_config(config: GlobalConfig) -> Result<(), String> {
+    println!("save_global_config called with user_id: {}", config.user_id);
 
-    let config = GlobalConfig {
-        user_id,
-        system_token,
-    };
     let config_path = get_global_config_path()?;
 
     println!("Config path: {:?}", config_path);
@@ -648,6 +659,9 @@ async fn get_global_config() -> Result<Option<GlobalConfig>, String> {
 // 生成API Key的主函数
 #[tauri::command]
 async fn generate_api_key_for_tool(tool: String) -> Result<GenerateApiKeyResult, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     // 读取全局配置
     let global_config = get_global_config()
         .await?
@@ -662,7 +676,7 @@ async fn generate_api_key_for_tool(tool: String) -> Result<GenerateApiKeyResult,
     };
 
     // 创建token
-    let client = reqwest::Client::new();
+    let client = build_reqwest_client().map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
     let create_url = "https://duckcoding.com/api/token";
 
     let create_body = serde_json::json!({
@@ -766,6 +780,9 @@ async fn generate_api_key_for_tool(tool: String) -> Result<GenerateApiKeyResult,
 // 获取用户用量统计（近30天）
 #[tauri::command]
 async fn get_usage_stats() -> Result<UsageStatsResult, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     // 读取全局配置
     let global_config = get_global_config()
         .await?
@@ -786,7 +803,7 @@ async fn get_usage_stats() -> Result<UsageStatsResult, String> {
     let end_timestamp = today_end;
 
     // 调用API
-    let client = reqwest::Client::new();
+    let client = build_reqwest_client().map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
     let url = format!(
         "https://duckcoding.com/api/data/self?start_timestamp={}&end_timestamp={}",
         start_timestamp, end_timestamp
@@ -837,13 +854,16 @@ async fn get_usage_stats() -> Result<UsageStatsResult, String> {
 // 获取用户额度信息
 #[tauri::command]
 async fn get_user_quota() -> Result<UserQuotaResult, String> {
+    // 应用代理配置（如果已配置）
+    apply_proxy_if_configured().await;
+
     // 读取全局配置
     let global_config = get_global_config()
         .await?
         .ok_or("请先配置用户ID和系统访问令牌")?;
 
     // 调用API
-    let client = reqwest::Client::new();
+    let client = build_reqwest_client().map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
     let url = "https://duckcoding.com/api/user/self";
 
     let response = client
@@ -1378,11 +1398,39 @@ fn hide_window_to_tray<R: Runtime>(window: &WebviewWindow<R>) {
     }
 }
 
+// Helper: build reqwest client that respects the current proxy if configured
+fn build_reqwest_client() -> Result<reqwest::Client, String> {
+    if let Some(proxy_url) = duckcoding::ProxyService::get_current_proxy() {
+        match reqwest::Proxy::all(&proxy_url) {
+            Ok(proxy) => reqwest::Client::builder()
+                .proxy(proxy)
+                .build()
+                .map_err(|e| format!("Failed to build reqwest client: {}", e)),
+            Err(e) => Err(format!("Invalid proxy URL: {}", e)),
+        }
+    } else {
+        Ok(reqwest::Client::new())
+    }
+}
+
 fn main() {
     let builder = tauri::Builder::default()
         .setup(|app| {
-            // 设置工作目录到项目根目录（跨平台支持）
-            if let Ok(resource_dir) = app.path().resource_dir() {
+            // 尝试在应用启动时加载全局配置并应用代理设置，确保子进程继承代理 env
+            if let Ok(config_path) = get_global_config_path() {
+                if config_path.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&config_path) {
+                        if let Ok(cfg) = serde_json::from_str::<GlobalConfig>(&content) {
+                            // 应用代理到环境变量（进程级）
+                            duckcoding::ProxyService::apply_proxy_from_config(&cfg);
+                            println!("Applied proxy from config at startup");
+                        }
+                    }
+                }
+            }
+
+             // 设置工作目录到项目根目录（跨平台支持）
+             if let Ok(resource_dir) = app.path().resource_dir() {
                 println!("Resource dir: {:?}", resource_dir);
 
                 if cfg!(debug_assertions) {
@@ -1516,8 +1564,12 @@ fn main() {
             generate_api_key_for_tool,
             get_usage_stats,
             get_user_quota,
-            handle_close_action
-        ]);
+            // expose current proxy for debugging/testing
+            get_current_proxy,
+             handle_close_action,
+             apply_proxy_now,
+             test_proxy_request
+         ]);
 
     // 使用自定义事件循环处理 macOS Reopen 事件
     builder
@@ -1562,3 +1614,60 @@ fn main() {
             }
         });
 }
+
+// Tauri command: 获取当前进程的代理设置（用于前端调试）
+#[tauri::command]
+fn get_current_proxy() -> Result<Option<String>, String> {
+    Ok(duckcoding::ProxyService::get_current_proxy())
+}
+
+// Add runtime command to re-apply proxy from saved config without recompiling
+#[tauri::command]
+fn apply_proxy_now() -> Result<Option<String>, String> {
+    let config_path = get_global_config_path()?;
+    if !config_path.exists() {
+        return Err("config not found".to_string());
+    }
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read config: {}", e))?;
+    let cfg: GlobalConfig = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse config: {}", e))?;
+
+    duckcoding::ProxyService::apply_proxy_from_config(&cfg);
+    Ok(duckcoding::ProxyService::get_current_proxy())
+}
+
+#[derive(serde::Serialize)]
+struct TestProxyResult {
+    success: bool,
+    status: u16,
+    url: Option<String>,
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn test_proxy_request() -> Result<TestProxyResult, String> {
+    // build client (will pick up proxy if set)
+    let client = build_reqwest_client().map_err(|e| format!("failed to build client: {}", e))?;
+    let url = "https://httpbin.org/get";
+
+    match client.get(url).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let url_ret = resp.url().as_str().to_string();
+            Ok(TestProxyResult {
+                success: resp.status().is_success(),
+                status,
+                url: Some(url_ret),
+                error: None,
+            })
+        }
+        Err(e) => Ok(TestProxyResult {
+            success: false,
+            status: 0,
+            url: None,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+

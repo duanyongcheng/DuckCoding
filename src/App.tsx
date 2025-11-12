@@ -67,6 +67,9 @@ import {
   getUsageStats,
   getUserQuota,
   applyCloseAction,
+  getCurrentProxy,
+  applyProxyNow,
+  testProxyRequest,
   type ToolStatus,
   type NodeEnvironment,
   type ActiveConfig,
@@ -268,6 +271,12 @@ function App() {
   const [globalConfig, setGlobalConfig] = useState<GlobalConfig | null>(null);
   const [userId, setUserId] = useState('');
   const [systemToken, setSystemToken] = useState('');
+  const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [proxyType, setProxyType] = useState<'http' | 'https' | 'socks5'>('http');
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyUsername, setProxyUsername] = useState('');
+  const [proxyPassword, setProxyPassword] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [generatingKey, setGeneratingKey] = useState(false);
 
@@ -600,6 +609,12 @@ function App() {
         setGlobalConfig(config);
         setUserId(config.user_id);
         setSystemToken(config.system_token);
+        setProxyEnabled(config.proxy_enabled || false);
+        setProxyType(config.proxy_type || 'http');
+        setProxyHost(config.proxy_host || '');
+        setProxyPort(config.proxy_port || '');
+        setProxyUsername(config.proxy_username || '');
+        setProxyPassword(config.proxy_password || '');
       }
     } catch (error) {
       console.error('Failed to load global config:', error);
@@ -829,8 +844,18 @@ function App() {
 
     try {
       setSavingSettings(true);
-      await saveGlobalConfig(trimmedUserId, trimmedToken);
-      setGlobalConfig({ user_id: trimmedUserId, system_token: trimmedToken });
+      const configToSave: GlobalConfig = {
+        user_id: trimmedUserId,
+        system_token: trimmedToken,
+        proxy_enabled: proxyEnabled,
+        proxy_type: proxyType,
+        proxy_host: proxyHost.trim() || undefined,
+        proxy_port: proxyPort.trim() || undefined,
+        proxy_username: proxyUsername.trim() || undefined,
+        proxy_password: proxyPassword.trim() || undefined,
+      };
+      await saveGlobalConfig(configToSave);
+      setGlobalConfig(configToSave);
       toast({
         title: '保存成功',
         description: '全局设置保存成功',
@@ -1765,17 +1790,17 @@ function App() {
                               >
                                 {installing === tool.id ? (
                                   <>
-                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     安装中...
                                   </>
                                 ) : tool.installed ? (
                                   <>
-                                    <CheckCircle2 className="mr-2 h-5 w-5" />
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
                                     已安装
                                   </>
                                 ) : (
                                   <>
-                                    <Package className="mr-2 h-5 w-5" />
+                                    <Package className="mr-2 h-4 w-4" />
                                     安装工具
                                   </>
                                 )}
@@ -1803,7 +1828,7 @@ function App() {
                   <div className="grid gap-4">
                     {/* 重要提示 - 移到顶部 */}
                     <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-2 mb-3">
                         <Info className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                         <div className="space-y-2">
                           <h4 className="font-semibold text-amber-900 dark:text-amber-100">
@@ -1919,27 +1944,25 @@ function App() {
 
                           {provider === 'duckcoding' && (
                             <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-4">
-                              <div className="flex items-start gap-3">
-                                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                                <div className="space-y-2">
-                                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                                    DuckCoding 默认配置
-                                  </p>
-                                  <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                                    <p>
-                                      • Base URL:{' '}
-                                      <code className="bg-white/50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded">
-                                        {selectedTool === 'codex'
-                                          ? 'https://jp.duckcoding.com/v1'
-                                          : 'https://jp.duckcoding.com'}
-                                      </code>
-                                    </p>
-                                    <p>• 无需手动填写 Base URL，将自动使用默认端点</p>
-                                    <p>
-                                      • 切换配置后，请<strong>重启相关 CLI</strong> 以使新配置生效
-                                    </p>
-                                  </div>
-                                </div>
+                              <div className="flex items-start gap-2 mb-3">
+                                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                <h4 className="font-semibold text-blue-900 dark:text-blue-100">
+                                  DuckCoding 默认配置
+                                </h4>
+                              </div>
+                              <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                                <p>
+                                  • Base URL:{' '}
+                                  <code className="bg-white/50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded">
+                                    {selectedTool === 'codex'
+                                      ? 'https://jp.duckcoding.com/v1'
+                                      : 'https://jp.duckcoding.com'}
+                                  </code>
+                                </p>
+                                <p>• 无需手动填写 Base URL，将自动使用默认端点</p>
+                                <p>
+                                  • 切换配置后，请<strong>重启相关 CLI</strong> 以使新配置生效
+                                </p>
                               </div>
                             </div>
                           )}
@@ -2172,59 +2195,157 @@ function App() {
 
       {/* 全局设置对话框 */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-[500px]" onPointerDown={(e) => e.stopPropagation()}>
+        <DialogContent className="sm:max-w-[600px]" onPointerDown={(e) => e.stopPropagation()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <SettingsIcon className="h-5 w-5" />
               全局设置
             </DialogTitle>
-            <DialogDescription>
-              配置 DuckCoding 用户ID 和系统访问令牌，用于一键生成 API Key
-            </DialogDescription>
+            <DialogDescription>配置 DuckCoding 用户凭证、代理等全局选项</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="user-id">用户ID *</Label>
-              <Input
-                id="user-id"
-                type="text"
-                placeholder="在 DuckCoding 控制台个人中心查看"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                className="shadow-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="system-token">系统访问令牌 *</Label>
-              <Input
-                id="system-token"
-                type="password"
-                placeholder="在 DuckCoding 控制台系统配置中生成"
-                value={systemToken}
-                onChange={(e) => setSystemToken(e.target.value)}
-                className="shadow-sm"
-              />
-            </div>
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-200">
-              <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-semibold">如何获取？</p>
-                  <p>
-                    1. 访问{' '}
-                    <button
-                      onClick={() => openExternalLink('https://duckcoding.com/console/personal')}
-                      className="underline hover:text-blue-600 cursor-pointer bg-transparent border-0 p-0 inline"
-                    >
-                      个人中心
-                    </button>{' '}
-                    查看用户ID
-                  </p>
-                  <p>2. 在系统配置中生成系统访问令牌</p>
+          <Tabs defaultValue="basic" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="basic">基本设置</TabsTrigger>
+              <TabsTrigger value="proxy">代理设置</TabsTrigger>
+            </TabsList>
+            <TabsContent value="basic" className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-id">用户ID *</Label>
+                <Input
+                  id="user-id"
+                  type="text"
+                  placeholder="在 DuckCoding 控制台个人中心查看"
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
+                  className="shadow-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="system-token">系统访问令牌 *</Label>
+                <Input
+                  id="system-token"
+                  type="password"
+                  placeholder="在 DuckCoding 控制台系统配置中生成"
+                  value={systemToken}
+                  onChange={(e) => setSystemToken(e.target.value)}
+                  className="shadow-sm"
+                />
+              </div>
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-200">
+                <div className="flex items-start gap-2 mb-3">
+                  <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="font-semibold">如何获取？</p>
+                    <p>
+                      1. 访问{' '}
+                      <button
+                        onClick={() => openExternalLink('https://duckcoding.com/console/personal')}
+                        className="underline hover:text-blue-600 cursor-pointer bg-transparent border-0 p-0 inline"
+                      >
+                        个人中心
+                      </button>{' '}
+                      查看用户ID
+                    </p>
+                    <p>2. 在系统配置中生成系统访问令牌</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </TabsContent>
+            <TabsContent value="proxy" className="space-y-4 py-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="proxy-enabled" className="text-base">
+                    启用代理
+                  </Label>
+                  <p className="text-sm text-muted-foreground">为所有网络请求使用代理</p>
+                </div>
+                <input
+                  id="proxy-enabled"
+                  type="checkbox"
+                  checked={proxyEnabled}
+                  onChange={(e) => setProxyEnabled(e.target.checked)}
+                  className="h-4 w-4"
+                />
+              </div>
+              {proxyEnabled && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-type">代理类型</Label>
+                    <Select
+                      value={proxyType}
+                      onValueChange={(value) => setProxyType(value as 'http' | 'https' | 'socks5')}
+                    >
+                      <SelectTrigger id="proxy-type" className="shadow-sm">
+                        <SelectValue placeholder="选择代理类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="http">HTTP</SelectItem>
+                        <SelectItem value="https">HTTPS</SelectItem>
+                        <SelectItem value="socks5">SOCKS5</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="proxy-host">代理主机 *</Label>
+                      <Input
+                        id="proxy-host"
+                        type="text"
+                        placeholder="例如: 127.0.0.1"
+                        value={proxyHost}
+                        onChange={(e) => setProxyHost(e.target.value)}
+                        className="shadow-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="proxy-port">端口 *</Label>
+                      <Input
+                        id="proxy-port"
+                        type="text"
+                        placeholder="例如: 7890"
+                        value={proxyPort}
+                        onChange={(e) => setProxyPort(e.target.value)}
+                        className="shadow-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-username">用户名（可选）</Label>
+                    <Input
+                      id="proxy-username"
+                      type="text"
+                      placeholder="如果需要认证"
+                      value={proxyUsername}
+                      onChange={(e) => setProxyUsername(e.target.value)}
+                      className="shadow-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="proxy-password">密码（可选）</Label>
+                    <Input
+                      id="proxy-password"
+                      type="password"
+                      placeholder="如果需要认证"
+                      value={proxyPassword}
+                      onChange={(e) => setProxyPassword(e.target.value)}
+                      className="shadow-sm"
+                    />
+                  </div>
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/50 rounded-lg border border-amber-200 dark:border-amber-800 text-sm text-amber-800 dark:text-amber-200">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      <div className="text-xs text-amber-700 dark:text-amber-300">
+                        <p className="font-semibold mb-1">代理说明</p>
+                        <p>• 启用代理后，软件的所有网络流量都将通过该代理</p>
+                        <p>• 包括：工具安装、更新检查、API 调用等</p>
+                        <p>• 请确保代理服务器可用，否则可能导致网络请求失败</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+          </Tabs>
           <DialogFooter>
             <Button
               type="button"
@@ -2233,6 +2354,31 @@ function App() {
               disabled={savingSettings}
             >
               取消
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={async () => {
+                try {
+                  toast({ title: '测试代理', description: '正在应用并测试代理，请稍候...' });
+                  // apply runtime proxy
+                  await applyProxyNow();
+                  const current = await getCurrentProxy();
+                  // 发起测试请求通过后端
+                  const res = await testProxyRequest();
+                  if (res.success) {
+                    toast({ title: '代理测试成功', description: `代理: ${current}\n状态: ${res.status}` });
+                  } else {
+                    toast({ title: '代理测试失败', description: `错误: ${res.error ?? 'unknown'}` });
+                  }
+                } catch (err) {
+                  toast({ title: '代理测试失败', description: String(err) });
+                }
+              }}
+              disabled={savingSettings}
+              className="shadow-sm hover:shadow-md transition-all mr-2"
+            >
+              测试代理
             </Button>
             <Button
               type="button"
