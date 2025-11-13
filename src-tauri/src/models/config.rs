@@ -36,4 +36,3 @@ pub struct GlobalConfig {
 fn default_transparent_proxy_port() -> u16 {
     8787
 }
-
