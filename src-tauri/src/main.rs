@@ -14,7 +14,8 @@ use tauri::{
 };
 
 // 导入服务层
-use duckcoding::{ConfigService, InstallMethod, InstallerService, Tool, VersionService};
+use duckcoding::{ConfigService, InstallMethod, InstallerService, Tool};
+use duckcoding::services::VersionService;
 // Use the shared GlobalConfig from the library crate (models::config)
 use duckcoding::GlobalConfig;
 // 导入透明代理服务
@@ -1594,8 +1595,9 @@ async fn start_transparent_proxy(
 
     // 启动代理服务
     let service = state.service.lock().await;
+    let allow_public = config.transparent_proxy_allow_public;
     service
-        .start(proxy_config)
+        .start(proxy_config, allow_public)
         .await
         .map_err(|e| format!("启动透明代理服务失败: {}", e))?;
 

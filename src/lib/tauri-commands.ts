@@ -43,6 +43,7 @@ export interface GlobalConfig {
   transparent_proxy_enabled?: boolean;
   transparent_proxy_port?: number;
   transparent_proxy_api_key?: string;
+  transparent_proxy_allow_public?: boolean;
   // 保存真实的 API 配置
   transparent_proxy_real_api_key?: string;
   transparent_proxy_real_base_url?: string;
