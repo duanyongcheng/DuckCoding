@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   updateTool as updateToolCommand,
   checkAllUpdates,
@@ -107,9 +107,31 @@ export function useDashboard(initialTools: ToolStatus[]) {
   };
 
   // 更新tools数据（用于外部同步）
-  const updateTools = (newTools: ToolStatus[]) => {
-    setTools(newTools);
-  };
+  // 智能合并：保留现有的更新检测字段，避免被外部状态覆盖
+  const updateTools = useCallback((newTools: ToolStatus[]) => {
+    setTools((prevTools) => {
+      const mergedTools = newTools.map((newTool) => {
+        const existingTool = prevTools.find((t) => t.id === newTool.id);
+
+        // 如果找到现有工具，合并状态并保留更新检测字段
+        if (existingTool) {
+          return {
+            ...newTool,
+            // 保留检查更新后设置的字段
+            hasUpdate: existingTool.hasUpdate,
+            latestVersion: existingTool.latestVersion,
+            mirrorVersion: existingTool.mirrorVersion,
+            mirrorIsStale: existingTool.mirrorIsStale,
+          };
+        }
+
+        // 新工具直接使用
+        return newTool;
+      });
+
+      return mergedTools;
+    });
+  }, []); // 空依赖数组，因为使用了函数式更新
 
   return {
     tools,
