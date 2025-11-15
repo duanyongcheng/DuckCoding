@@ -17,8 +17,9 @@ pub use services::transparent_proxy_config::TransparentProxyConfigService;
 pub use services::update::UpdateService;
 pub use services::version::VersionService;
 
-// Exclude PlatformInfo from utils to avoid conflict with models::update::PlatformInfo
-pub use utils::{*};
+// Re-export selected utils items to avoid conflicts with update::PlatformInfo
+pub use utils::command::*;
+pub use utils::platform::PlatformInfo as SystemPlatformInfo;
 
 // Re-export the correct PlatformInfo from models
 pub use models::update::PlatformInfo as UpdatePlatformInfo;

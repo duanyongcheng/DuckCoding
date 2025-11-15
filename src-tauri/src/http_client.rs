@@ -2,12 +2,14 @@
 
 use reqwest::{self, Client};
 
+const USER_AGENT: &str = concat!("DuckCoding-Updater/", env!("CARGO_PKG_VERSION"));
+
 /// 构建一个遵循当前进程代理环境的 reqwest::Client。
 /// 优先读取由 ProxyService 写入的环境变量（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY 等）。
 /// - 若配置了 `socks5://` 但构建失败，会返回更友好的错误提示。
 pub fn build_client() -> Result<Client, String> {
     let mut builder = reqwest::Client::builder()
-        .user_agent("DuckCoding-Updater/1.2.3")
+        .user_agent(USER_AGENT)
         .timeout(std::time::Duration::from_secs(300)) // 5分钟超时
         .redirect(reqwest::redirect::Policy::limited(10)); // 支持重定向
 
@@ -15,9 +17,10 @@ pub fn build_client() -> Result<Client, String> {
         match reqwest::Proxy::all(&proxy_url) {
             Ok(proxy) => {
                 builder = builder.proxy(proxy);
-                builder.build()
+                builder
+                    .build()
                     .map_err(|e| format!("Failed to build reqwest client: {}", e))
-            },
+            }
             Err(e) => {
                 // 为 SOCKS5 提供更友好的错误说明
                 if proxy_url.starts_with("socks5") {
@@ -30,7 +33,8 @@ pub fn build_client() -> Result<Client, String> {
             }
         }
     } else {
-        builder.build()
+        builder
+            .build()
             .map_err(|e| format!("Failed to build reqwest client: {}", e))
     }
 }

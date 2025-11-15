@@ -12,7 +12,7 @@ import {
   getCurrentAppVersion,
   getPlatformInfo,
   getRecommendedPackageFormat,
-  onUpdateDownloadProgress
+  onUpdateDownloadProgress,
 } from '@/services/update';
 
 interface UseUpdateProps {
@@ -171,39 +171,45 @@ export function useUpdate({ externalUpdateInfo, onExternalUpdateCheck }: UseUpda
   }, [downloadUpdate, installUpdate]);
 
   // 下载特定URL的更新包
-  const downloadSpecificPackage = useCallback(async (url: string) => {
-    if (!url || isDownloading) return null;
+  const downloadSpecificPackage = useCallback(
+    async (url: string) => {
+      if (!url || isDownloading) return null;
 
-    setIsDownloading(true);
-    setError(null);
-    setUpdateStatus('Downloading');
-    setDownloadProgress(null);
+      setIsDownloading(true);
+      setError(null);
+      setUpdateStatus('Downloading');
+      setDownloadProgress(null);
 
-    try {
-      const updatePath = await downloadAppUpdate(url);
-      setUpdateStatus('Downloaded');
-      return updatePath;
-    } catch (err) {
-      console.error('Failed to download update package:', err);
-      setError('下载更新包失败: ' + (err as Error).message);
-      setUpdateStatus('Failed');
-      return null;
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [isDownloading]);
+      try {
+        const updatePath = await downloadAppUpdate(url);
+        setUpdateStatus('Downloaded');
+        return updatePath;
+      } catch (err) {
+        console.error('Failed to download update package:', err);
+        setError('下载更新包失败: ' + (err as Error).message);
+        setUpdateStatus('Failed');
+        return null;
+      } finally {
+        setIsDownloading(false);
+      }
+    },
+    [isDownloading],
+  );
 
   // 下载并安装特定包
-  const downloadAndInstallSpecificPackage = useCallback(async (url: string) => {
-    try {
-      const updatePath = await downloadSpecificPackage(url);
-      if (updatePath) {
-        await installUpdate(updatePath);
+  const downloadAndInstallSpecificPackage = useCallback(
+    async (url: string) => {
+      try {
+        const updatePath = await downloadSpecificPackage(url);
+        if (updatePath) {
+          await installUpdate(updatePath);
+        }
+      } catch (err) {
+        console.error('Failed to download and install specific package:', err);
       }
-    } catch (err) {
-      console.error('Failed to download and install specific package:', err);
-    }
-  }, [downloadSpecificPackage, installUpdate]);
+    },
+    [downloadSpecificPackage, installUpdate],
+  );
 
   // 重启应用进行更新
   const restartToUpdate = useCallback(async () => {
@@ -230,9 +236,12 @@ export function useUpdate({ externalUpdateInfo, onExternalUpdateCheck }: UseUpda
   }, []);
 
   // 格式化下载速度
-  const formatSpeed = useCallback((bytesPerSecond: number): string => {
-    return formatFileSize(bytesPerSecond) + '/s';
-  }, [formatFileSize]);
+  const formatSpeed = useCallback(
+    (bytesPerSecond: number): string => {
+      return formatFileSize(bytesPerSecond) + '/s';
+    },
+    [formatFileSize],
+  );
 
   // 格式化ETA
   const formatEta = useCallback((seconds: number): string => {
@@ -283,7 +292,9 @@ export function useUpdate({ externalUpdateInfo, onExternalUpdateCheck }: UseUpda
 
     // 计算属性
     hasUpdate: updateInfo?.has_update || false,
-    isUpdateAvailable: updateStatus === 'Available' || (updateInfo?.has_update === true && updateStatus !== 'Checking'),
+    isUpdateAvailable:
+      updateStatus === 'Available' ||
+      (updateInfo?.has_update === true && updateStatus !== 'Checking'),
     isUpdateDownloaded: updateStatus === 'Downloaded',
     isUpdateInstalled: updateStatus === 'Installed',
     isUpdateFailed: updateStatus === 'Failed',

@@ -2,22 +2,22 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface UpdateUrls {
   // Windows 平台
-  windows?: string;        // 通用 Windows 安装包
-  windows_exe?: string;    // Windows .exe 安装包
-  windows_msi?: string;    // Windows .msi 安装包
+  windows?: string; // 通用 Windows 安装包
+  windows_exe?: string; // Windows .exe 安装包
+  windows_msi?: string; // Windows .msi 安装包
 
   // macOS 平台
-  macos?: string;          // 通用 macOS 安装包
-  macos_dmg?: string;      // macOS .dmg 安装包
+  macos?: string; // 通用 macOS 安装包
+  macos_dmg?: string; // macOS .dmg 安装包
 
   // Linux 平台
-  linux?: string;          // 通用 Linux 安装包
-  linux_deb?: string;      // Debian/Ubuntu .deb 包
-  linux_rpm?: string;      // RedHat/CentOS .rpm 包
+  linux?: string; // 通用 Linux 安装包
+  linux_deb?: string; // Debian/Ubuntu .deb 包
+  linux_rpm?: string; // RedHat/CentOS .rpm 包
   linux_appimage?: string; // Linux AppImage 包
 
   // 通用版本
-  universal?: string;      // 跨平台通用版本
+  universal?: string; // 跨平台通用版本
 }
 
 export interface UpdateInfo {
@@ -115,16 +115,13 @@ export async function getRecommendedPackageFormat(): Promise<PackageFormatInfo> 
 export function onUpdateDownloadProgress(callback: (progress: DownloadProgress) => void) {
   // 检查是否在Tauri环境中
   if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-    return (window as any).__TAURI__.event.listen(
-      'update-download-progress',
-      (event: any) => {
-        if (event && event.payload) {
-          callback(event.payload as DownloadProgress);
-        }
+    return (window as any).__TAURI__.event.listen('update-download-progress', (event: any) => {
+      if (event && event.payload) {
+        callback(event.payload as DownloadProgress);
       }
-    );
+    });
   }
 
-  // 如果不在Tauri环境中，返回一个空函数
-  return Promise.resolve(() => {});
+  // 如果不在Tauri环境中，返回一个空函数（保持API一致）
+  return Promise.resolve(() => undefined);
 }

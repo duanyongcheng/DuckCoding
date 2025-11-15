@@ -8,10 +8,10 @@ use tokio::io::AsyncWriteExt;
 #[derive(Debug, Clone)]
 pub enum DownloadEvent {
     Started,
-    Progress(u64, u64),    // downloaded, total
+    Progress(u64, u64), // downloaded, total
     Completed,
     Failed(String),
-    Speed(u64),            // bytes per second
+    Speed(u64), // bytes per second
 }
 
 /// 文件下载器
@@ -43,12 +43,14 @@ impl FileDownloader {
 
         // 确保目标目录存在
         if let Some(parent) = file_path.parent() {
-            tokio::fs::create_dir_all(parent).await
+            tokio::fs::create_dir_all(parent)
+                .await
                 .context("Failed to create download directory")?;
         }
 
         // 发起HTTP请求
-        let response = self.client
+        let response = self
+            .client
             .get(url)
             .send()
             .await
@@ -59,7 +61,10 @@ impl FileDownloader {
             let url_str = url.to_string();
 
             // 尝试获取错误响应的详细信息
-            let error_text = response.text().await.unwrap_or_else(|_| "Unable to read error response".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
 
             return Err(anyhow::anyhow!(
                 "Download failed from {}\nStatus: {}\nError details: {}",
@@ -89,7 +94,8 @@ impl FileDownloader {
         while let Some(chunk_result) = bytes_stream.next().await {
             let chunk = chunk_result.context("Failed to read download chunk")?;
 
-            file.write_all(&chunk).await
+            file.write_all(&chunk)
+                .await
                 .context("Failed to write download chunk")?;
 
             downloaded += chunk.len() as u64;
@@ -112,7 +118,9 @@ impl FileDownloader {
             }
         }
 
-        file.flush().await.context("Failed to flush downloaded file")?;
+        file.flush()
+            .await
+            .context("Failed to flush downloaded file")?;
 
         // 发送完成事件
         progress_callback(DownloadEvent::Completed);

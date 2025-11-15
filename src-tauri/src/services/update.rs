@@ -1,6 +1,6 @@
 use crate::models::update::{
-    DownloadProgress, DownloadTask, UpdateInfo, UpdateStatus, UpdateApiResponse, UpdateUrls,
-    PlatformInfo as UpdatePlatformInfo, PackageFormatInfo
+    DownloadProgress, DownloadTask, PackageFormatInfo, PlatformInfo as UpdatePlatformInfo,
+    UpdateApiResponse, UpdateInfo, UpdateStatus, UpdateUrls,
 };
 use crate::services::downloader::{DownloadEvent, FileDownloader};
 use anyhow::{anyhow, Context, Result};
@@ -39,7 +39,8 @@ impl UpdateService {
     /// 初始化更新服务
     pub async fn initialize(&self) -> Result<()> {
         // 确保更新目录存在
-        fs::create_dir_all(&self.update_dir).await
+        fs::create_dir_all(&self.update_dir)
+            .await
             .context("Failed to create update directory")?;
 
         Ok(())
@@ -76,7 +77,9 @@ impl UpdateService {
             return Err(anyhow!("Update API returned status: {}", response.status()));
         }
 
-        let api_response: UpdateApiResponse = response.json().await
+        let api_response: UpdateApiResponse = response
+            .json()
+            .await
             .context("Failed to parse update response")?;
 
         // 检查版本是否需要更新
@@ -109,7 +112,8 @@ impl UpdateService {
         #[cfg(target_os = "windows")]
         {
             // Windows 平台优先级：msi > exe > windows
-            update_urls.windows_msi
+            update_urls
+                .windows_msi
                 .clone()
                 .or_else(|| update_urls.windows_exe.clone())
                 .or_else(|| update_urls.windows.clone())
@@ -119,7 +123,8 @@ impl UpdateService {
         #[cfg(target_os = "macos")]
         {
             // macOS 平台优先级：dmg > macos
-            update_urls.macos_dmg
+            update_urls
+                .macos_dmg
                 .clone()
                 .or_else(|| update_urls.macos.clone())
                 .or_else(|| update_urls.universal.clone())
@@ -128,7 +133,8 @@ impl UpdateService {
         #[cfg(target_os = "linux")]
         {
             // Linux 平台优先级：AppImage > deb > rpm > linux
-            update_urls.linux_appimage
+            update_urls
+                .linux_appimage
                 .clone()
                 .or_else(|| {
                     // 根据发行版选择包格式
@@ -152,6 +158,7 @@ impl UpdateService {
     }
 
     /// 检测是否为基于Debian的发行版
+    #[cfg(target_os = "linux")]
     fn is_debian_based(&self) -> bool {
         // 这里可以添加更复杂的检测逻辑
         // 简单检查常见的Debian包管理器
@@ -161,6 +168,7 @@ impl UpdateService {
     }
 
     /// 检测是否为基于RedHat的发行版
+    #[cfg(target_os = "linux")]
     fn is_redhat_based(&self) -> bool {
         // 简单检查常见的RedHat包管理器
         std::path::Path::new("/etc/redhat-release").exists()
@@ -176,7 +184,10 @@ impl UpdateService {
     {
         let current_status = self.status.read().await.clone();
         if !self.can_download().await {
-            return Err(anyhow!("Cannot download update in current state: {:?}", current_status));
+            return Err(anyhow!(
+                "Cannot download update in current state: {:?}",
+                current_status
+            ));
         }
 
         let file_name = self.extract_filename_from_url(url)?;
@@ -196,8 +207,6 @@ impl UpdateService {
 
         // 开始下载
         let downloader = self.downloader.clone();
-        let _file_path_clone = file_path.clone();
-        let status = self.status.clone();
 
         let result = downloader
             .download_with_progress(url, &file_path, move |event| {
@@ -234,6 +243,7 @@ impl UpdateService {
                         });
                     }
                     DownloadEvent::Failed(error) => {
+                        eprintln!("Download failed: {}", error);
                         // 注意：这里不能使用await，需要在异步上下文中处理
                         progress_callback(DownloadProgress {
                             downloaded_bytes: 0,
@@ -349,10 +359,7 @@ impl UpdateService {
         {
             PackageFormatInfo {
                 platform: "macos".to_string(),
-                preferred_formats: vec![
-                    "macos_dmg".to_string(),
-                    "macos".to_string(),
-                ],
+                preferred_formats: vec!["macos_dmg".to_string(), "macos".to_string()],
                 fallback_format: "macos".to_string(),
             }
         }
@@ -394,12 +401,11 @@ impl UpdateService {
     }
 
     fn extract_filename_from_url(&self, url: &str) -> Result<String> {
-        let parsed_url = url::Url::parse(url)
-            .context("Invalid update URL")?;
+        let parsed_url = url::Url::parse(url).context("Invalid update URL")?;
 
         let filename = parsed_url
             .path_segments()
-            .and_then(|segments| segments.last())
+            .and_then(|mut segments| segments.next_back())
             .ok_or_else(|| anyhow!("Cannot extract filename from URL"))?;
 
         Ok(filename.to_string())
@@ -414,7 +420,8 @@ impl UpdateService {
     async fn backup_current_version(&self) -> Result<()> {
         // 实现备份逻辑
         let backup_dir = self.update_dir.join("backup");
-        fs::create_dir_all(&backup_dir).await
+        fs::create_dir_all(&backup_dir)
+            .await
             .context("Failed to create backup directory")?;
 
         // 这里应该备份当前的可执行文件
@@ -433,14 +440,19 @@ impl UpdateService {
         }
 
         // 2. 获取文件信息
-        let metadata = tokio::fs::metadata(update_path).await
+        let metadata = tokio::fs::metadata(update_path)
+            .await
             .context("Failed to read update file metadata")?;
 
         let file_size = metadata.len();
-        println!("开始安装更新文件: {} (大小: {} bytes)", update_path, file_size);
+        println!(
+            "开始安装更新文件: {} (大小: {} bytes)",
+            update_path, file_size
+        );
 
         // 3. 根据文件扩展名执行安装
-        let file_name = file_path.file_name()
+        let file_name = file_path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown");
 
@@ -463,7 +475,10 @@ impl UpdateService {
                                     return Ok(());
                                 } else {
                                     let exit_code = status.code().unwrap_or(-1);
-                                    return Err(anyhow!("EXE installer failed with exit code: {}", exit_code));
+                                    return Err(anyhow!(
+                                        "EXE installer failed with exit code: {}",
+                                        exit_code
+                                    ));
                                 }
                             }
                             Err(e) => {
@@ -485,7 +500,10 @@ impl UpdateService {
                                 return Ok(());
                             }
                             Err(e) => {
-                                return Err(anyhow!("Failed to start EXE installer and open file manager: {}", e));
+                                return Err(anyhow!(
+                                    "Failed to start EXE installer and open file manager: {}",
+                                    e
+                                ));
                             }
                         }
                     }
@@ -495,10 +513,10 @@ impl UpdateService {
 
                 // 尝试多种 MSI 安装方式
                 let install_methods = vec![
-                    vec!["/i", update_path, "/quiet", "/norestart"],  // 静默安装
+                    vec!["/i", update_path, "/quiet", "/norestart"], // 静默安装
                     vec!["/i", update_path, "/passive", "/norestart"], // 被动安装（显示进度）
-                    vec!["/i", update_path, "/qn", "/norestart"],     // 无界面安装
-                    vec!["/i", update_path], // 基本安装
+                    vec!["/i", update_path, "/qn", "/norestart"],    // 无界面安装
+                    vec!["/i", update_path],                         // 基本安装
                 ];
 
                 let mut last_error = None;
@@ -506,31 +524,32 @@ impl UpdateService {
                 for (i, args) in install_methods.iter().enumerate() {
                     println!("尝试 MSI 安装方法 {}: {:?}", i + 1, args);
 
-                    match tokio::process::Command::new("msiexec")
-                        .args(args)
-                        .spawn()
-                    {
-                        Ok(mut child) => {
-                            match child.wait().await {
-                                Ok(status) => {
-                                    if status.success() {
-                                        println!("MSI 安装成功 (方法 {})", i + 1);
-                                        return Ok(());
-                                    } else {
-                                        let error_msg = format!("MSI installer (方法 {}) failed with exit code: {:?}", i + 1, status.code());
-                                        println!("{}", error_msg);
-                                        last_error = Some(anyhow!(error_msg));
-                                    }
-                                }
-                                Err(e) => {
-                                    let error_msg = format!("MSI installer (方法 {}) wait failed: {}", i + 1, e);
+                    match tokio::process::Command::new("msiexec").args(args).spawn() {
+                        Ok(mut child) => match child.wait().await {
+                            Ok(status) => {
+                                if status.success() {
+                                    println!("MSI 安装成功 (方法 {})", i + 1);
+                                    return Ok(());
+                                } else {
+                                    let error_msg = format!(
+                                        "MSI installer (方法 {}) failed with exit code: {:?}",
+                                        i + 1,
+                                        status.code()
+                                    );
                                     println!("{}", error_msg);
                                     last_error = Some(anyhow!(error_msg));
                                 }
                             }
-                        }
+                            Err(e) => {
+                                let error_msg =
+                                    format!("MSI installer (方法 {}) wait failed: {}", i + 1, e);
+                                println!("{}", error_msg);
+                                last_error = Some(anyhow!(error_msg));
+                            }
+                        },
                         Err(e) => {
-                            let error_msg = format!("Failed to start MSI installer (方法 {}): {}", i + 1, e);
+                            let error_msg =
+                                format!("Failed to start MSI installer (方法 {}): {}", i + 1, e);
                             println!("{}", error_msg);
                             last_error = Some(anyhow!(error_msg));
                         }
@@ -569,33 +588,33 @@ impl UpdateService {
         {
             if file_name.ends_with(".dmg") {
                 println!("执行 macOS DMG 挂载");
-                let result = tokio::process::Command::new("hdiutil")
+                let mut child = tokio::process::Command::new("hdiutil")
                     .arg("attach")
                     .arg(update_path)
                     .spawn()
-                    .context("Failed to mount DMG");
+                    .context("Failed to mount DMG")?;
 
-                if let Ok(mut child) = result {
-                    let status = child.wait().await
-                        .context("DMG mounting failed")?;
-                    if !status.success() {
-                        return Err(anyhow!("DMG mounting failed with exit code: {:?}", status.code()));
-                    }
+                let status = child.wait().await.context("DMG mounting failed")?;
+                if !status.success() {
+                    return Err(anyhow!(
+                        "DMG mounting failed with exit code: {:?}",
+                        status.code()
+                    ));
                 }
             } else if file_name.ends_with(".pkg") {
                 // macOS 安装包
                 println!("执行 macOS PKG 安装程序");
-                let result = tokio::process::Command::new("open")
+                let mut child = tokio::process::Command::new("open")
                     .arg(update_path)
                     .spawn()
                     .context("Failed to open PKG installer")?;
 
-                if let Ok(mut child) = result {
-                    let status = child.wait().await
-                        .context("PKG installer failed")?;
-                    if !status.success() {
-                        return Err(anyhow!("PKG installer failed with exit code: {:?}", status.code()));
-                    }
+                let status = child.wait().await.context("PKG installer failed")?;
+                if !status.success() {
+                    return Err(anyhow!(
+                        "PKG installer failed with exit code: {:?}",
+                        status.code()
+                    ));
                 }
             } else {
                 // 其他格式，尝试用 Finder 打开
@@ -617,20 +636,20 @@ impl UpdateService {
                     .context("Failed to set execute permissions")?;
 
                 println!("启动 AppImage: {}", update_path);
-                let result = tokio::process::Command::new(update_path)
+                let mut child = tokio::process::Command::new(update_path)
                     .spawn()
-                    .context("Failed to start AppImage");
+                    .context("Failed to start AppImage")?;
 
-                if let Ok(mut child) = result {
-                    let status = child.wait().await
-                        .context("AppImage execution failed")?;
-                    if !status.success() {
-                        return Err(anyhow!("AppImage execution failed with exit code: {:?}", status.code()));
-                    }
+                let status = child.wait().await.context("AppImage execution failed")?;
+                if !status.success() {
+                    return Err(anyhow!(
+                        "AppImage execution failed with exit code: {:?}",
+                        status.code()
+                    ));
                 }
             } else if file_name.ends_with(".deb") {
                 println!("执行 DEB 包安装");
-                let result = tokio::process::Command::new("sudo")
+                let mut child = tokio::process::Command::new("sudo")
                     .arg("apt")
                     .arg("install")
                     .arg("-y")
@@ -638,16 +657,16 @@ impl UpdateService {
                     .spawn()
                     .context("Failed to start DEB installer")?;
 
-                if let Ok(mut child) = result {
-                    let status = child.wait().await
-                        .context("DEB installer failed")?;
-                    if !status.success() {
-                        return Err(anyhow!("DEB installer failed with exit code: {:?}", status.code()));
-                    }
+                let status = child.wait().await.context("DEB installer failed")?;
+                if !status.success() {
+                    return Err(anyhow!(
+                        "DEB installer failed with exit code: {:?}",
+                        status.code()
+                    ));
                 }
             } else if file_name.ends_with(".rpm") {
                 println!("执行 RPM 包安装");
-                let result = tokio::process::Command::new("sudo")
+                let mut child = tokio::process::Command::new("sudo")
                     .arg("dnf")
                     .arg("install")
                     .arg("-y")
@@ -655,12 +674,12 @@ impl UpdateService {
                     .spawn()
                     .context("Failed to start RPM installer")?;
 
-                if let Ok(mut child) = result {
-                    let status = child.wait().await
-                        .context("RPM installer failed")?;
-                    if !status.success() {
-                        return Err(anyhow!("RPM installer failed with exit code: {:?}", status.code()));
-                    }
+                let status = child.wait().await.context("RPM installer failed")?;
+                if !status.success() {
+                    return Err(anyhow!(
+                        "RPM installer failed with exit code: {:?}",
+                        status.code()
+                    ));
                 }
             } else {
                 // 其他格式，尝试用系统默认程序打开

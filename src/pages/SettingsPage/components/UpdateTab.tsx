@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Download,
   Check,
@@ -14,7 +13,7 @@ import {
   HardDrive,
   Info,
   Loader2,
-  RotateCcw
+  RotateCcw,
 } from 'lucide-react';
 import { useUpdate } from '../hooks/useUpdate';
 import { InstallPackageSelector } from './InstallPackageSelector';
@@ -40,13 +39,11 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
     isDownloading,
     error,
     checkForUpdates,
-    downloadAndInstallUpdate,
     downloadAndInstallSpecificPackage,
     restartToUpdate,
     formatFileSize,
     formatSpeed,
     formatEta,
-    hasUpdate,
     isUpdateAvailable,
     isUpdateDownloaded,
     isUpdateInstalled,
@@ -105,9 +102,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
             <Info className="h-5 w-5" />
             当前版本信息
           </CardTitle>
-          <CardDescription>
-            查看当前应用版本和更新状态
-          </CardDescription>
+          <CardDescription>查看当前应用版本和更新状态</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -115,10 +110,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
               <div className="text-sm font-medium">当前版本</div>
               <div className="text-2xl font-bold">{currentVersion}</div>
             </div>
-            <Badge
-              variant="outline"
-              className={`${getStatusColor()} text-white border-none`}
-            >
+            <Badge variant="outline" className={`${getStatusColor()} text-white border-none`}>
               {getStatusText()}
             </Badge>
           </div>
@@ -155,8 +147,6 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
         </CardContent>
       </Card>
 
-    
-  
       {/* 更新信息 */}
       {updateInfo && updateInfo.has_update && (
         <Card>
@@ -165,9 +155,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
               <Zap className="h-5 w-5" />
               发现新版本
             </CardTitle>
-            <CardDescription>
-              最新版本 {updateInfo.latest_version} 可供下载
-            </CardDescription>
+            <CardDescription>最新版本 {updateInfo.latest_version} 可供下载</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -197,9 +185,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
                 </Button>
                 {showReleaseNotes && (
                   <div className="p-3 bg-gray-50 rounded-md text-sm">
-                    <pre className="whitespace-pre-wrap">
-                      {updateInfo.release_notes}
-                    </pre>
+                    <pre className="whitespace-pre-wrap">{updateInfo.release_notes}</pre>
                   </div>
                 )}
               </div>
@@ -255,9 +241,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
       <Card>
         <CardHeader>
           <CardTitle>更新操作</CardTitle>
-          <CardDescription>
-            检查、下载和安装应用更新
-          </CardDescription>
+          <CardDescription>检查、下载和安装应用更新</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* 统一的按钮状态管理 - 使用互斥条件避免重复显示 */}
@@ -272,14 +256,8 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
                     <Check className="h-4 w-4" />
                     <span>更新安装完成</span>
                   </div>
-                  <div className="text-sm text-gray-600">
-                    请重启应用以使用新版本
-                  </div>
-                  <Button
-                    onClick={restartToUpdate}
-                    className="w-full"
-                    variant="default"
-                  >
+                  <div className="text-sm text-gray-600">请重启应用以使用新版本</div>
+                  <Button onClick={restartToUpdate} className="w-full" variant="default">
                     <RotateCcw className="mr-2 h-4 w-4" />
                     重启应用
                   </Button>
@@ -295,14 +273,8 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
                     <Check className="h-4 w-4" />
                     <span>更新已下载完成</span>
                   </div>
-                  <div className="text-sm text-gray-600">
-                    点击下方按钮重启应用以完成安装
-                  </div>
-                  <Button
-                    onClick={restartToUpdate}
-                    className="w-full"
-                    variant="default"
-                  >
+                  <div className="text-sm text-gray-600">点击下方按钮重启应用以完成安装</div>
+                  <Button onClick={restartToUpdate} className="w-full" variant="default">
                     <RotateCcw className="mr-2 h-4 w-4" />
                     重启应用完成更新
                   </Button>
@@ -331,11 +303,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
                       </div>
                     )}
                   </div>
-                  <Button
-                    className="w-full"
-                    disabled
-                    variant="outline"
-                  >
+                  <Button className="w-full" disabled variant="outline">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     下载中，请稍候...
                   </Button>
@@ -351,10 +319,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span>正在安装更新...</span>
                   </div>
-                  <Button
-                    className="w-full"
-                    disabled
-                  >
+                  <Button className="w-full" disabled>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     安装中，请稍候...
                   </Button>
@@ -365,10 +330,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
             // 5. 发现更新状态
             if (isUpdateAvailable && updateInfo) {
               return (
-                <Button
-                  onClick={() => setShowPackageSelector(true)}
-                  className="w-full"
-                >
+                <Button onClick={() => setShowPackageSelector(true)} className="w-full">
                   <Download className="mr-2 h-4 w-4" />
                   选择安装包并更新
                 </Button>
@@ -384,9 +346,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
                     <span>更新失败</span>
                   </div>
                   {error && (
-                    <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                      {error}
-                    </div>
+                    <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>
                   )}
                   <Button
                     onClick={checkForUpdates}
@@ -466,11 +426,7 @@ export function UpdateTab({ updateInfo: externalUpdateInfo, onUpdateCheck }: Upd
 
             // 9. 初始状态 - 未检查过
             return (
-              <Button
-                onClick={checkForUpdates}
-                className="w-full"
-                disabled={isChecking}
-              >
+              <Button onClick={checkForUpdates} className="w-full" disabled={isChecking}>
                 {isChecking ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

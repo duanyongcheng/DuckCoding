@@ -20,7 +20,12 @@ interface SettingsPageProps {
   onUpdateCheck?: () => void;
 }
 
-export function SettingsPage({ globalConfig, onConfigChange, updateInfo, onUpdateCheck }: SettingsPageProps) {
+export function SettingsPage({
+  globalConfig,
+  onConfigChange,
+  updateInfo,
+  onUpdateCheck,
+}: SettingsPageProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('basic');
 

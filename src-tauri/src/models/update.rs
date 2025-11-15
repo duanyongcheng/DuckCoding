@@ -15,18 +15,19 @@ pub struct UpdateInfo {
 }
 
 /// 更新状态
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum UpdateStatus {
-    Idle,                    // 空闲状态
-    Checking,               // 检查更新中
-    Available,              // 有可用更新
-    Downloading,            // 下载中
-    Downloaded,             // 下载完成
-    Installing,             // 安装中
-    Installed,              // 安装完成，等待重启
-    Failed(String),         // 更新失败
-    Rollback,               // 回滚中
-    RolledBack,             // 回滚完成
+    #[default]
+    Idle, // 空闲状态
+    Checking,       // 检查更新中
+    Available,      // 有可用更新
+    Downloading,    // 下载中
+    Downloaded,     // 下载完成
+    Installing,     // 安装中
+    Installed,      // 安装完成，等待重启
+    Failed(String), // 更新失败
+    Rollback,       // 回滚中
+    RolledBack,     // 回滚完成
 }
 
 /// 下载进度
@@ -37,12 +38,6 @@ pub struct DownloadProgress {
     pub percentage: f32,
     pub speed: Option<u64>, // bytes per second
     pub eta: Option<u32>,   // estimated time remaining in seconds
-}
-
-impl Default for UpdateStatus {
-    fn default() -> Self {
-        UpdateStatus::Idle
-    }
 }
 
 /// 下载任务信息
@@ -105,13 +100,13 @@ pub struct UpdateApiResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateUrls {
     // Windows 平台
-    pub windows: Option<String>,        // 通用 Windows 安装包
-    pub windows_exe: Option<String>,    // Windows .exe 安装包
-    pub windows_msi: Option<String>,    // Windows .si 安装包
+    pub windows: Option<String>,     // 通用 Windows 安装包
+    pub windows_exe: Option<String>, // Windows .exe 安装包
+    pub windows_msi: Option<String>, // Windows .si 安装包
 
     // macOS 平台
-    pub macos: Option<String>,          // 通用 macOS 安装包
-    pub macos_dmg: Option<String>,      // macOS .dmg 安装包
+    pub macos: Option<String>,     // 通用 macOS 安装包
+    pub macos_dmg: Option<String>, // macOS .dmg 安装包
 
     // Linux 平台
     pub linux: Option<String>,          // 通用 Linux 安装包
@@ -120,5 +115,5 @@ pub struct UpdateUrls {
     pub linux_appimage: Option<String>, // Linux AppImage 包
 
     // 通用包（如果有的话）
-    pub universal: Option<String>,      // 跨平台通用包
+    pub universal: Option<String>, // 跨平台通用包
 }
