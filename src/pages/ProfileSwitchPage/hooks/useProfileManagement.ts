@@ -151,12 +151,16 @@ export function useProfileManagement(
 
         // 尝试重新加载所有配置，确保与后端同步
         try {
-          await loadAllProfiles();
+          const latest = await loadAllProfiles();
+          const deletedWasActive =
+            latest.activeConfigs[toolId]?.profile_name === profile ||
+            activeConfigs[toolId]?.profile_name === profile;
 
-          // 如果删除的是当前正在使用的配置，重新获取当前配置
-          if (activeConfigs[toolId]?.profile_name === profile) {
+          // 如果删除的是当前正在使用的配置，确保UI展示的生效配置同步更新
+          if (deletedWasActive) {
             try {
-              const newActiveConfig = await getActiveConfig(toolId);
+              const newActiveConfig =
+                latest.activeConfigs[toolId] ?? (await getActiveConfig(toolId));
               setActiveConfigs((prev) => ({ ...prev, [toolId]: newActiveConfig }));
             } catch (error) {
               console.error('Failed to reload active config', error);

@@ -74,6 +74,7 @@ export function useProfileLoader(
 
     setProfiles(profileData);
     setActiveConfigs(configData);
+    return { profiles: profileData, activeConfigs: configData };
   }, [tools, profileTransform]);
 
   return {

@@ -93,19 +93,16 @@ export function useConfigManagement(tools: ToolStatus[]) {
       return { success: false, message: '选择自定义端点时必须填写有效的 Base URL' };
     }
 
-    // 确保拥有最新的配置数据
-    let currentConfig = activeConfigs[selectedTool];
-    if (!currentConfig) {
-      // 重新加载以获取最新配置
-      await loadAllProfiles();
-      currentConfig = activeConfigs[selectedTool];
-    }
+    // 确保拥有最新的配置数据，避免使用陈旧状态
+    const latest = await loadAllProfiles();
+    const effectiveProfiles = latest?.profiles[selectedTool] ?? profiles[selectedTool] ?? [];
+    const effectiveConfig = latest?.activeConfigs[selectedTool] ?? activeConfigs[selectedTool];
 
-    // 检查是否会覆盖现有配置
-    const existingProfiles = profiles[selectedTool] || [];
     const hasRealConfig =
-      currentConfig && currentConfig.api_key !== '未配置' && currentConfig.base_url !== '未配置';
-    const willOverride = profileName ? existingProfiles.includes(profileName) : hasRealConfig;
+      effectiveConfig &&
+      effectiveConfig.api_key !== '未配置' &&
+      effectiveConfig.base_url !== '未配置';
+    const willOverride = profileName ? effectiveProfiles.includes(profileName) : hasRealConfig;
 
     if (willOverride) {
       return { success: false, message: '', needsConfirmation: true };
