@@ -115,6 +115,7 @@ function HelpDialog({
                 1-1.如果没有显示，请尝试在ClaudeCode命令会话框中输入任意文本并发送以触发请求。
               </li>
               <li>2.重启ClaudeCode后会话ID变化 需要重新选择并配置</li>
+              <li>3.运行/clear命令后会话ID变化 需要重新选择并配置</li>
             </ul>
           </div>
 
