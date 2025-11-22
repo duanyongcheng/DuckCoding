@@ -67,6 +67,7 @@ last-updated: 2025-11-18
 - 全局配置读写统一走 `utils::config::{read_global_config, write_global_config, apply_proxy_if_configured}`，避免出现多份路径逻辑；任何命令要修改配置都应调用这些辅助函数。
 - UpdateService / 统计命令等都通过 `tauri::State` 注入复用，前端 ToolStatus 的结构保持轻量字段 `{id,name,installed,version}`。
 - UI 相关的托盘/窗口操作集中在 `src-tauri/src/ui/*`，其它模块如需最小化到托盘请调用 `ui::hide_window_to_tray` 等封装方法。
+- 新增 `TransparentProxyPage` 与会话数据库：`SESSION_MANAGER` 使用 SQLite 记录每个代理会话的 endpoint/API Key，前端可按工具启停代理、查看历史并启用「会话级 Endpoint 配置」开关。
 
 ### 透明代理扩展指南
 
