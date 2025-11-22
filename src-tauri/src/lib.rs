@@ -20,7 +20,7 @@ pub use services::update::UpdateService;
 pub use services::version::VersionService;
 // Re-export new proxy architecture types
 pub use models::ToolProxyConfig;
-pub use services::proxy::{HeadersProcessor, ProxyInstance, ProxyManager};
+pub use services::proxy::{ProxyInstance, ProxyManager, RequestProcessor};
 
 // Re-export selected utils items to avoid conflicts with update::PlatformInfo
 pub use utils::command::*;

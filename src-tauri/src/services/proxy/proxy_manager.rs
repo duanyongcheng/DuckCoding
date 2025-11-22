@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::headers::create_headers_processor;
+use super::headers::create_request_processor;
 use super::proxy_instance::ProxyInstance;
 use crate::models::ToolProxyConfig;
 
@@ -58,8 +58,8 @@ impl ProxyManager {
             }
         }
 
-        // 创建 HeadersProcessor
-        let processor = create_headers_processor(tool_id);
+        // 创建 RequestProcessor
+        let processor = create_request_processor(tool_id);
 
         // 创建并启动代理实例
         let instance = ProxyInstance::new(tool_id.to_string(), config, processor);

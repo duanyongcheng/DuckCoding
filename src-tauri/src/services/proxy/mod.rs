@@ -9,7 +9,10 @@ pub mod proxy_service;
 pub mod transparent_proxy;
 pub mod transparent_proxy_config;
 
-pub use headers::{create_headers_processor, HeadersProcessor};
+pub use headers::{create_request_processor, ProcessedRequest, RequestProcessor};
+// 向后兼容的导出（已弃用）
+#[allow(deprecated)]
+pub use headers::create_headers_processor;
 pub use proxy_instance::ProxyInstance;
 pub use proxy_manager::ProxyManager;
 pub use proxy_service::ProxyService;

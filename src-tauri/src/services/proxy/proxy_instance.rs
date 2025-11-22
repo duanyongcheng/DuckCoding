@@ -22,14 +22,14 @@ use std::task::{Context as TaskContext, Poll};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
-use super::headers::HeadersProcessor;
+use super::headers::RequestProcessor;
 use crate::models::ToolProxyConfig;
 
 /// 单个代理实例
 pub struct ProxyInstance {
     tool_id: String,
     config: Arc<RwLock<ToolProxyConfig>>,
-    processor: Arc<dyn HeadersProcessor>,
+    processor: Arc<dyn RequestProcessor>,
     server_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 }
 
@@ -38,7 +38,7 @@ impl ProxyInstance {
     pub fn new(
         tool_id: String,
         config: ToolProxyConfig,
-        processor: Box<dyn HeadersProcessor>,
+        processor: Box<dyn RequestProcessor>,
     ) -> Self {
         Self {
             tool_id,
@@ -179,7 +179,7 @@ impl ProxyInstance {
 async fn handle_request(
     req: Request<Incoming>,
     config: Arc<RwLock<ToolProxyConfig>>,
-    processor: Arc<dyn HeadersProcessor>,
+    processor: Arc<dyn RequestProcessor>,
     own_port: u16,
     tool_id: &str,
 ) -> Result<Response<BoxBody>, Infallible> {
@@ -201,7 +201,7 @@ async fn handle_request(
 async fn handle_request_inner(
     req: Request<Incoming>,
     config: Arc<RwLock<ToolProxyConfig>>,
-    processor: Arc<dyn HeadersProcessor>,
+    processor: Arc<dyn RequestProcessor>,
     own_port: u16,
     tool_id: &str,
 ) -> Result<Response<BoxBody>> {
@@ -252,13 +252,11 @@ async fn handle_request_inner(
         }
     }
 
-    // 构建目标 URL
-    let path = req.uri().path();
-    let query = req
-        .uri()
-        .query()
-        .map(|q| format!("?{}", q))
-        .unwrap_or_default();
+    // 提取请求信息（先借用，避免与后续的 collect 冲突）
+    let path = req.uri().path().to_string();
+    let query = req.uri().query().map(|s| s.to_string());
+    let method = req.method().clone();
+    let headers = req.headers().clone();
 
     let base = proxy_config
         .real_base_url
@@ -266,16 +264,25 @@ async fn handle_request_inner(
         .unwrap()
         .trim_end_matches('/');
 
-    // 如果 base_url 以 /v1 结尾，且 path 以 /v1 开头，则去掉 path 中的 /v1
-    // 这是因为 Codex 的配置文件要求 base_url 包含 /v1，
-    // 但 Codex 发送请求时也会带上 /v1 前缀
-    let adjusted_path = if base.ends_with("/v1") && path.starts_with("/v1") {
-        &path[3..] // 去掉 "/v1"
+    // 读取请求体（消费 req）
+    let body_bytes = if method != Method::GET && method != Method::HEAD {
+        req.collect().await?.to_bytes()
     } else {
-        path
+        Bytes::new()
     };
 
-    let target_url = format!("{}{}{}", base, adjusted_path, query);
+    // 使用 RequestProcessor 统一处理请求（URL + headers + body）
+    let processed = processor
+        .process_outgoing_request(
+            base,
+            proxy_config.real_api_key.as_ref().unwrap(),
+            &path,
+            query.as_deref(),
+            &headers,
+            &body_bytes,
+        )
+        .await
+        .context("处理出站请求失败")?;
 
     // 回环检测
     let loop_urls = vec![
@@ -286,7 +293,7 @@ async fn handle_request_inner(
     ];
 
     for loop_url in &loop_urls {
-        if target_url.starts_with(loop_url) {
+        if processed.target_url.starts_with(loop_url) {
             return Ok(Response::builder()
                 .status(StatusCode::BAD_GATEWAY)
                 .header("content-type", "application/json")
@@ -304,53 +311,20 @@ async fn handle_request_inner(
 
     println!(
         "🔄 {} 代理请求: {} {} -> {}",
-        tool_id,
-        req.method(),
-        path,
-        target_url
+        tool_id, method, &path, processed.target_url
     );
 
-    // 读取请求体
-    let method = req.method().clone();
-    let headers = req.headers().clone();
-    let body_bytes = if method != Method::GET && method != Method::HEAD {
-        req.collect().await?.to_bytes()
-    } else {
-        Bytes::new()
-    };
-
-    // 构建上游请求
-    let mut reqwest_builder = reqwest::Client::new().request(method.clone(), &target_url);
-
-    // 复制 headers（跳过 Host）
-    let mut reqwest_headers = reqwest::header::HeaderMap::new();
-    for (name, value) in headers.iter() {
-        if name.as_str().eq_ignore_ascii_case("host") {
-            continue;
-        }
-        if name.as_str().eq_ignore_ascii_case("authorization")
-            || name.as_str().eq_ignore_ascii_case("x-api-key")
-        {
-            continue; // 将由 HeadersProcessor 处理
-        }
-        reqwest_headers.insert(name.clone(), value.clone());
-    }
-
-    // 调用 HeadersProcessor 处理请求 headers
-    let target_api_key = proxy_config.real_api_key.as_ref().unwrap();
-    processor
-        .process_request(&mut reqwest_headers, &body_bytes, target_api_key)
-        .await
-        .context("Headers 处理失败")?;
+    // 构建上游请求（使用处理后的信息）
+    let mut reqwest_builder = reqwest::Client::new().request(method.clone(), &processed.target_url);
 
     // 应用处理后的 headers
-    for (name, value) in reqwest_headers.iter() {
+    for (name, value) in processed.headers.iter() {
         reqwest_builder = reqwest_builder.header(name, value);
     }
 
     // 添加请求体
-    if !body_bytes.is_empty() {
-        reqwest_builder = reqwest_builder.body(body_bytes.to_vec());
+    if !processed.body.is_empty() {
+        reqwest_builder = reqwest_builder.body(processed.body.to_vec());
     }
 
     // 发送请求
