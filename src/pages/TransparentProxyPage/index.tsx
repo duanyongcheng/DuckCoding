@@ -44,9 +44,6 @@ export function TransparentProxyPage() {
   // 使用代理控制 Hook
   const { startProxy, stopProxy, isLoading, isRunning, getPort } = useProxyControl();
 
-  // 获取当前选中工具的数据（保留用于未来扩展）
-  const _currentToolData = getToolData(selectedToolId);
-
   /**
    * 启动代理处理
    */
