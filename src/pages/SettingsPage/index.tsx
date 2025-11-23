@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useSettingsForm } from './hooks/useSettingsForm';
 import { BasicSettingsTab } from './components/BasicSettingsTab';
 import { ProxySettingsTab } from './components/ProxySettingsTab';
-import { MultiToolProxySettings } from './components/MultiToolProxySettings';
+import { TransparentProxyMigrationNotice } from './components/TransparentProxyMigrationNotice';
 import { AboutTab } from './components/AboutTab';
 import type { GlobalConfig, UpdateInfo } from '@/lib/tauri-commands';
 
@@ -157,9 +157,9 @@ export function SettingsPage({
           />
         </TabsContent>
 
-        {/* 透明代理 (多工具) */}
+        {/* 透明代理 (迁移提示) */}
         <TabsContent value="experimental" className="space-y-6">
-          <MultiToolProxySettings />
+          <TransparentProxyMigrationNotice />
         </TabsContent>
 
         {/* 关于 */}

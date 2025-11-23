@@ -39,13 +39,10 @@ export function TransparentProxyPage() {
   const [selectedToolId, setSelectedToolId] = useState<ToolId>('claude-code');
 
   // 使用数据管理 Hook
-  const { getToolData, configLoading } = useToolProxyData();
+  const { getToolData, configLoading, refreshData, saveToolConfig } = useToolProxyData();
 
   // 使用代理控制 Hook
   const { startProxy, stopProxy, isLoading, isRunning, getPort } = useProxyControl();
-
-  // 获取当前选中工具的数据（保留用于未来扩展）
-  const _currentToolData = getToolData(selectedToolId);
 
   /**
    * 启动代理处理
@@ -124,6 +121,8 @@ export function TransparentProxyPage() {
                 config={toolData.config}
                 onStart={() => handleStartProxy(tool.id)}
                 onStop={() => handleStopProxy(tool.id)}
+                onConfigUpdated={refreshData}
+                onSaveSettings={(updates) => saveToolConfig(tool.id, updates)}
               />
 
               {/* 工具特定内容（工厂渲染） */}

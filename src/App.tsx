@@ -252,6 +252,7 @@ function App() {
     },
     onNavigateToInstall: () => setActiveTab('install'),
     onNavigateToSettings: () => setActiveTab('settings'),
+    onNavigateToTransparentProxy: () => setActiveTab('transparent-proxy'),
     onRefreshTools: loadTools,
     executeCloseAction,
   });

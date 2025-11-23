@@ -50,7 +50,9 @@ function getDefaultToolConfig(toolId: string): ToolProxyConfig {
     real_api_key: null,
     real_base_url: null,
     real_model_provider: null,
+    real_profile_name: null,
     allow_public: false,
+    session_endpoint_config_enabled: false,
   };
 }
 

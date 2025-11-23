@@ -2,7 +2,12 @@
 // 统一管理三个工具的配置和状态数据
 
 import { useState, useEffect, useCallback } from 'react';
-import { getGlobalConfig, type GlobalConfig, type ToolProxyConfig } from '@/lib/tauri-commands';
+import {
+  getGlobalConfig,
+  saveGlobalConfig,
+  type GlobalConfig,
+  type ToolProxyConfig,
+} from '@/lib/tauri-commands';
 import type { ToolId } from '../types/proxy-history';
 import { useProxyControl } from './useProxyControl';
 
@@ -80,6 +85,46 @@ export function useToolProxyData() {
     return toolIds.map((toolId) => getToolData(toolId));
   }, [getToolData]);
 
+  /**
+   * 保存指定工具的配置
+   */
+  const saveToolConfig = useCallback(
+    async (toolId: ToolId, updates: Partial<ToolProxyConfig>): Promise<void> => {
+      if (!globalConfig) {
+        throw new Error('全局配置未加载');
+      }
+
+      const currentConfig = globalConfig.proxy_configs?.[toolId] || {
+        enabled: false,
+        port: 8787,
+        local_api_key: null,
+        real_api_key: null,
+        real_base_url: null,
+        real_model_provider: null,
+        real_profile_name: null,
+        allow_public: false,
+        session_endpoint_config_enabled: false,
+      };
+
+      const updatedConfig: ToolProxyConfig = {
+        ...currentConfig,
+        ...updates,
+      };
+
+      const configToSave: GlobalConfig = {
+        ...globalConfig,
+        proxy_configs: {
+          ...globalConfig.proxy_configs,
+          [toolId]: updatedConfig,
+        },
+      };
+
+      await saveGlobalConfig(configToSave);
+      setGlobalConfig(configToSave);
+    },
+    [globalConfig],
+  );
+
   // 初始加载
   useEffect(() => {
     loadGlobalConfig();
@@ -91,6 +136,7 @@ export function useToolProxyData() {
     proxyStatus,
     getToolData,
     getAllToolsData,
+    saveToolConfig,
     refreshData,
     loadGlobalConfig,
     refreshProxyStatus,

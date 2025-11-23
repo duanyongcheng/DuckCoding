@@ -352,7 +352,9 @@ export interface ToolProxyConfig {
   real_api_key: string | null;
   real_base_url: string | null;
   real_model_provider: string | null; // Codex 专用：备份的 model_provider
+  real_profile_name: string | null; // 备份的配置名称
   allow_public: boolean;
+  session_endpoint_config_enabled: boolean; // 工具级：是否允许会话自定义端点
 }
 
 export interface TransparentProxyStatus {
