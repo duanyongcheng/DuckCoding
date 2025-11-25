@@ -73,7 +73,9 @@ impl LogConfig {
     /// 检查新配置是否可以热重载（无需重启应用）
     /// 只有日志级别变更可以热重载，其他配置需要重启
     pub fn can_hot_reload(&self, other: &LogConfig) -> bool {
-        self.format == other.format && self.output == other.output && self.file_path == other.file_path
+        self.format == other.format
+            && self.output == other.output
+            && self.file_path == other.file_path
     }
 }
 

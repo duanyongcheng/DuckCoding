@@ -12,7 +12,12 @@ import {
 } from '@/components/ui/select';
 import { FileText, Info, Loader2, Save, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getLogConfig, updateLogConfig, isReleaseBuild, type LogConfig } from '@/lib/tauri-commands';
+import {
+  getLogConfig,
+  updateLogConfig,
+  isReleaseBuild,
+  type LogConfig,
+} from '@/lib/tauri-commands';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export function LogSettingsTab() {
@@ -32,10 +37,7 @@ export function LogSettingsTab() {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const [currentConfig, releaseFlag] = await Promise.all([
-        getLogConfig(),
-        isReleaseBuild(),
-      ]);
+      const [currentConfig, releaseFlag] = await Promise.all([getLogConfig(), isReleaseBuild()]);
 
       setIsRelease(releaseFlag);
 
@@ -78,9 +80,7 @@ export function LogSettingsTab() {
       setSaving(true);
 
       // Release 版本强制使用 File 输出
-      const configToSave = isRelease
-        ? { ...config, output: 'file' as const }
-        : config;
+      const configToSave = isRelease ? { ...config, output: 'file' as const } : config;
 
       const message = await updateLogConfig(configToSave);
       setOriginalConfig(configToSave);
@@ -122,9 +122,7 @@ export function LogSettingsTab() {
           <Label htmlFor="log-level">日志级别</Label>
           <Select
             value={config.level}
-            onValueChange={(value) =>
-              setConfig({ ...config, level: value as LogConfig['level'] })
-            }
+            onValueChange={(value) => setConfig({ ...config, level: value as LogConfig['level'] })}
           >
             <SelectTrigger id="log-level" className="shadow-sm">
               <SelectValue />
@@ -203,9 +201,7 @@ export function LogSettingsTab() {
               id="log-file-path"
               placeholder="留空使用默认路径（~/.duckcoding/logs）"
               value={config.file_path || ''}
-              onChange={(e) =>
-                setConfig({ ...config, file_path: e.target.value || null })
-              }
+              onChange={(e) => setConfig({ ...config, file_path: e.target.value || null })}
               className="shadow-sm"
             />
             <p className="text-xs text-muted-foreground">
@@ -219,9 +215,7 @@ export function LogSettingsTab() {
           <div className="flex items-start gap-2">
             <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
             <div className="space-y-1 flex-1">
-              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                关于热重载
-              </p>
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">关于热重载</p>
               <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1 list-disc list-inside">
                 <li>
                   <strong>日志级别</strong>变更会立即生效，无需重启应用
