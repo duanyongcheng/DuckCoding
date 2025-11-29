@@ -238,10 +238,7 @@ pub fn update_log_level(new_level: LogLevel) -> anyhow::Result<()> {
 /// 此函数已弃用，请使用 `update_log_level` 代替。
 /// 旧版本通过环境变量调整，需要重启应用生效。
 /// 新版本使用 reload 机制，支持动态热重载。
-#[deprecated(
-    since = "1.3.0",
-    note = "请使用 update_log_level 代替，支持动态热重载"
-)]
+#[deprecated(since = "1.3.0", note = "请使用 update_log_level 代替，支持动态热重载")]
 #[allow(dead_code)]
 pub fn set_log_level(level: LogLevel) {
     if let Err(e) = update_log_level(level) {

@@ -81,6 +81,15 @@ last-updated: 2025-11-23
 - 工具安装状态由 `services::tool::ToolStatusCache` 并行检测与缓存，`check_installations`/`refresh_tool_status` 命令复用该缓存；安装/更新成功后或手动刷新会清空命中的工具缓存。
 - UI 相关的托盘/窗口操作集中在 `src-tauri/src/ui/*`，其它模块如需最小化到托盘请调用 `ui::hide_window_to_tray` 等封装方法。
 - 新增 `TransparentProxyPage` 与会话数据库：`SESSION_MANAGER` 使用 SQLite 记录每个代理会话的 endpoint/API Key，前端可按工具启停代理、查看历史并启用「会话级 Endpoint 配置」开关。页面内的 `ProxyControlBar`、`ProxySettingsDialog`、`ProxyConfigDialog` 负责代理启停、配置切换、工具级设置并内建缺失配置提示。
+- **新用户引导系统**：
+  - 首次启动强制引导，配置存储在 `GlobalConfig.onboarding_status: Option<OnboardingStatus>`（包含已完成版本、跳过步骤、完成时间）
+  - 版本化管理，支持增量更新（v1 -> v2 只展示新增内容），独立的引导内容版本号（与应用版本解耦）
+  - 前端定义引导步骤（`components/Onboarding/config/versions.ts`：`CURRENT_ONBOARDING_VERSION`、`VERSION_STEPS`、`getRequiredSteps`）
+  - Rust 命令：`get_onboarding_status`、`save_onboarding_progress`、`complete_onboarding`、`reset_onboarding`（位于 `commands/onboarding.rs`）
+  - 设置页「关于」标签可重新打开引导（调用 `reset_onboarding` 后刷新页面）
+  - v1 引导包含 4 步：欢迎页、代理配置（可跳过）、工具介绍、完成页
+  - 引导组件：`OnboardingOverlay`（全屏遮罩）、`OnboardingFlow`（流程控制）、步骤组件（`steps/v1/*`）
+  - App.tsx 启动时检查 `onboarding_status`，根据版本对比决定是否显示引导
 
 ### 透明代理扩展指南
 

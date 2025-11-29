@@ -405,6 +405,11 @@ fn main() {
             get_log_config,
             update_log_config,
             is_release_build,
+            // 引导管理命令
+            get_onboarding_status,
+            save_onboarding_progress,
+            complete_onboarding,
+            reset_onboarding,
         ]);
 
     // 使用自定义事件循环处理 macOS Reopen 事件
