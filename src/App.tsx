@@ -11,6 +11,7 @@ import { ConfigurationPage } from '@/pages/ConfigurationPage';
 import { ProfileSwitchPage } from '@/pages/ProfileSwitchPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { TransparentProxyPage } from '@/pages/TransparentProxyPage';
+import { ToolManagementPage } from '@/pages/ToolManagementPage';
 import { HelpPage } from '@/pages/HelpPage';
 import { useToast } from '@/hooks/use-toast';
 import { useAppEvents } from '@/hooks/useAppEvents';
@@ -39,6 +40,7 @@ import {
 
 type TabType =
   | 'dashboard'
+  | 'tool-management'
   | 'install'
   | 'config'
   | 'switch'
@@ -376,6 +378,9 @@ function App() {
         {/* 主内容区域 */}
         <main className="flex-1 overflow-auto">
           {activeTab === 'dashboard' && <DashboardPage tools={tools} loading={toolsLoading} />}
+          {activeTab === 'tool-management' && (
+            <ToolManagementPage tools={tools} loading={toolsLoading} />
+          )}
           {activeTab === 'install' && <InstallationPage tools={tools} loading={toolsLoading} />}
           {activeTab === 'config' && <ConfigurationPage tools={tools} loading={toolsLoading} />}
           {activeTab === 'switch' && <ProfileSwitchPage tools={tools} loading={toolsLoading} />}

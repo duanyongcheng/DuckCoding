@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
   LayoutDashboard,
-  Package,
+  Wrench,
   Key,
   ArrowRightLeft,
   BarChart3,
@@ -59,6 +59,17 @@ export function AppSidebar({ activeTab, onTabChange, restrictNavigation }: AppSi
         </Button>
 
         <Button
+          variant={activeTab === 'tool-management' ? 'default' : 'ghost'}
+          className="w-full justify-start transition-all hover:scale-105"
+          onClick={() => handleTabChange('tool-management')}
+          disabled={restrictNavigation && activeTab !== 'tool-management'}
+        >
+          <Wrench className="mr-2 h-4 w-4" />
+          工具管理
+        </Button>
+
+        {/* 安装工具页面已废弃，保留代码供参考 */}
+        {/* <Button
           variant={activeTab === 'install' ? 'default' : 'ghost'}
           className="w-full justify-start transition-all hover:scale-105"
           onClick={() => handleTabChange('install')}
@@ -66,7 +77,7 @@ export function AppSidebar({ activeTab, onTabChange, restrictNavigation }: AppSi
         >
           <Package className="mr-2 h-4 w-4" />
           安装工具
-        </Button>
+        </Button> */}
 
         <Button
           variant={activeTab === 'config' ? 'default' : 'ghost'}
