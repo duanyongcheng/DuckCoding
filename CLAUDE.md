@@ -1,6 +1,6 @@
 ---
 agent: Claude Code
-last-updated: 2025-11-23
+last-updated: 2025-12-07
 ---
 
 # DuckCoding 开发协作规范
