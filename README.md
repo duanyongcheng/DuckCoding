@@ -9,7 +9,7 @@
 支持 Claude Code、CodeX、Gemini CLI
 
 [![GitHub Release](https://img.shields.io/github/v/release/DuckCoding-dev/DuckCoding)](https://github.com/DuckCoding-dev/DuckCoding/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)]()
 [![GitHub Downloads](https://img.shields.io/github/downloads/DuckCoding-dev/DuckCoding/total)](https://github.com/DuckCoding-dev/DuckCoding/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/DuckCoding-dev/DuckCoding)](https://github.com/DuckCoding-dev/DuckCoding/stargazers)
@@ -198,7 +198,7 @@ DuckCoding 要求每个工具使用对应的专用分组令牌：
 
 ## 📄 许可证
 
-[MIT License](LICENSE)
+[GNU Affero General Public License v3.0](LICENSE)
 
 ## 🔗 相关链接
 
