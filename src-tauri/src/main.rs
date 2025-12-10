@@ -453,6 +453,7 @@ fn main() {
         refresh_all_tool_versions,
         check_all_updates,
         update_tool,
+        update_tool_instance,
         validate_tool_path,
         add_manual_tool_instance,
         scan_installer_for_tool_path,

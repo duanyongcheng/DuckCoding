@@ -250,6 +250,23 @@ export async function checkAllUpdates(): Promise<UpdateResult[]> {
   return await invoke<UpdateResult[]>('check_all_updates');
 }
 
+/**
+ * 更新工具实例（使用配置的安装器路径）
+ * @param instanceId 工具实例ID
+ * @param force 是否强制更新
+ * @returns 更新结果
+ */
+export async function updateToolInstance(
+  instanceId: string,
+  force?: boolean,
+): Promise<UpdateResult> {
+  return await invoke<UpdateResult>('update_tool_instance', { instanceId, force });
+}
+
+/**
+ * 更新工具（旧版本，已废弃）
+ * @deprecated 请使用 updateToolInstance
+ */
 export async function updateTool(tool: string, force?: boolean): Promise<UpdateResult> {
   return await invoke<UpdateResult>('update_tool', { tool, force });
 }

@@ -331,6 +331,7 @@ pub async fn check_update_for_instance(
     // 2. 使用 install_path 执行 --version 获取当前版本
     let current_version = if let Some(path) = &instance.install_path {
         let version_cmd = format!("{} --version", path);
+        tracing::info!("实例 {} 版本更新命令: {:?}", instance_id, version_cmd);
 
         #[cfg(target_os = "windows")]
         let output = Command::new("cmd").arg("/C").arg(&version_cmd).output();
@@ -505,7 +506,149 @@ pub async fn check_all_updates() -> Result<Vec<UpdateResult>, String> {
     Ok(results)
 }
 
-/// 更新指定工具
+/// 更新工具实例（使用配置的安装器路径）
+///
+/// 工作流程：
+/// 1. 从数据库读取实例信息
+/// 2. 使用 installer_path 和 install_method 执行更新
+/// 3. 更新数据库中的版本号
+///
+/// 返回：更新结果
+#[tauri::command]
+pub async fn update_tool_instance(
+    instance_id: String,
+    force: Option<bool>,
+) -> Result<UpdateResult, String> {
+    use ::duckcoding::models::{InstallMethod, Tool, ToolType};
+    use ::duckcoding::services::tool::ToolInstanceDB;
+    use std::process::Command;
+    use tokio::time::{timeout, Duration};
+
+    let force = force.unwrap_or(false);
+
+    // 1. 从数据库读取实例信息
+    let db = ToolInstanceDB::new().map_err(|e| format!("初始化数据库失败: {}", e))?;
+    let all_instances = db
+        .get_all_instances()
+        .map_err(|e| format!("读取数据库失败: {}", e))?;
+
+    let instance = all_instances
+        .iter()
+        .find(|inst| inst.instance_id == instance_id && inst.tool_type == ToolType::Local)
+        .ok_or_else(|| format!("未找到实例: {}", instance_id))?;
+
+    // 2. 检查是否有安装器路径和安装方法
+    let installer_path = instance.installer_path.as_ref().ok_or_else(|| {
+        "该实例未配置安装器路径，无法执行快捷更新。请手动更新或重新添加实例。".to_string()
+    })?;
+
+    let install_method = instance
+        .install_method
+        .as_ref()
+        .ok_or_else(|| "该实例未配置安装方法，无法执行快捷更新".to_string())?;
+
+    // 3. 根据安装方法构建更新命令
+    let tool_obj = Tool::by_id(&instance.base_id).ok_or_else(|| "未知工具".to_string())?;
+
+    let update_cmd = match install_method {
+        InstallMethod::Npm => {
+            let package_name = &tool_obj.npm_package;
+            if force {
+                format!("{} install -g {} --force", installer_path, package_name)
+            } else {
+                format!("{} update -g {}", installer_path, package_name)
+            }
+        }
+        InstallMethod::Brew => {
+            let tool_id = &instance.base_id;
+            format!("{} upgrade {}", installer_path, tool_id)
+        }
+        InstallMethod::Official => {
+            return Err("官方安装方式暂不支持快捷更新，请手动重新安装".to_string());
+        }
+        InstallMethod::Other => {
+            return Err("「其他」类型不支持 APP 内快捷更新，请手动更新".to_string());
+        }
+    };
+
+    // 4. 执行更新命令（120秒超时）
+    tracing::info!("使用安装器 {} 执行更新: {}", installer_path, update_cmd);
+
+    let update_future = async {
+        #[cfg(target_os = "windows")]
+        let output = Command::new("cmd").arg("/C").arg(&update_cmd).output();
+
+        #[cfg(not(target_os = "windows"))]
+        let output = Command::new("sh").arg("-c").arg(&update_cmd).output();
+
+        output
+    };
+
+    let update_result = timeout(Duration::from_secs(120), update_future).await;
+
+    match update_result {
+        Ok(Ok(output)) if output.status.success() => {
+            // 5. 更新成功，获取新版本
+            let version_cmd = format!("{} --version", instance.install_path.as_ref().unwrap());
+
+            #[cfg(target_os = "windows")]
+            let version_output = Command::new("cmd").arg("/C").arg(&version_cmd).output();
+
+            #[cfg(not(target_os = "windows"))]
+            let version_output = Command::new("sh").arg("-c").arg(&version_cmd).output();
+
+            let new_version = match version_output {
+                Ok(out) if out.status.success() => {
+                    let raw = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    Some(parse_version_string(&raw))
+                }
+                _ => None,
+            };
+
+            // 6. 更新数据库中的版本号
+            if let Some(ref version) = new_version {
+                let mut updated_instance = instance.clone();
+                updated_instance.version = Some(version.clone());
+                updated_instance.updated_at = chrono::Utc::now().timestamp();
+
+                if let Err(e) = db.update_instance(&updated_instance) {
+                    tracing::warn!("更新数据库版本失败: {}", e);
+                }
+            }
+
+            Ok(UpdateResult {
+                success: true,
+                message: "✅ 更新成功！".to_string(),
+                has_update: false,
+                current_version: new_version.clone(),
+                latest_version: new_version,
+                mirror_version: None,
+                mirror_is_stale: None,
+                tool_id: Some(instance.base_id.clone()),
+            })
+        }
+        Ok(Ok(output)) => {
+            // 命令执行失败
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            Err(format!(
+                "更新失败\n\nstderr: {}\nstdout: {}",
+                stderr, stdout
+            ))
+        }
+        Ok(Err(e)) => Err(format!("执行命令失败: {}", e)),
+        Err(_) => Err("更新超时（120秒）".to_string()),
+    }
+}
+
+/// 更新工具（旧版本，已废弃）
+///
+/// ⚠️ 此命令已废弃，请使用 update_tool_instance
+///
+/// 原因：
+/// - 不使用数据库中的 installer_path 配置
+/// - 每次重新检测安装方法，可能不准确
+/// - 无法支持同一工具的多个实例
 #[tauri::command]
 pub async fn update_tool(tool: String, force: Option<bool>) -> Result<UpdateResult, String> {
     // 应用代理配置（如果已配置）

@@ -7,7 +7,7 @@ import {
   addSshToolInstance,
   deleteToolInstance,
   checkUpdateForInstance,
-  updateTool,
+  updateToolInstance,
 } from '@/lib/tauri-commands';
 import type { ToolInstance, SSHConfig } from '@/types/tool-management';
 import { useToast } from '@/hooks/use-toast';
@@ -205,7 +205,7 @@ export function useToolManagement() {
   // 执行更新
   const handleUpdate = useCallback(
     async (instanceId: string) => {
-      // 从 instance 中解析 baseId
+      // 从 instance 中解析 baseId（用于显示）
       const parts = instanceId.split('-');
       const typeIndex = parts.findIndex((p) => ['local', 'wsl', 'ssh'].includes(p));
       const baseId = typeIndex > 0 ? parts.slice(0, typeIndex).join('-') : parts[0];
@@ -218,7 +218,8 @@ export function useToolManagement() {
           description: `正在更新 ${baseId}...`,
         });
 
-        const result = await updateTool(baseId);
+        // 使用新的基于实例的更新命令
+        const result = await updateToolInstance(instanceId);
 
         if (result.success) {
           toast({
