@@ -48,29 +48,57 @@ impl CommandExecutor {
     }
 
     /// 执行命令（使用增强的 PATH）
+    ///
+    /// 智能重试策略：
+    /// 1. 首次执行使用增强 PATH
+    /// 2. 如果失败且 exit code = 127（命令未找到），尝试扫描安装器
+    /// 3. 将安装器目录加入 PATH 后重试
     pub fn execute(&self, command_str: &str) -> CommandResult {
         let enhanced_path = self.platform.build_enhanced_path();
 
+        // 第一次尝试
+        let result = self.execute_with_path(command_str, &enhanced_path);
+
+        // 如果是 127 错误（命令未找到），尝试扫描安装器并重试
+        if !result.success && result.exit_code == Some(127) {
+            tracing::warn!(
+                "命令执行失败 (exit 127): {}，尝试扫描安装器后重试",
+                command_str
+            );
+
+            if let Some(extended_path) =
+                self.scan_installer_and_extend_path(command_str, &enhanced_path)
+            {
+                tracing::info!("扫描到安装器路径，使用扩展 PATH 重试: {}", extended_path);
+                return self.execute_with_path(command_str, &extended_path);
+            }
+        }
+
+        result
+    }
+
+    /// 使用指定的 PATH 执行命令
+    fn execute_with_path(&self, command_str: &str, path_env: &str) -> CommandResult {
         let output = if self.platform.is_windows {
             #[cfg(target_os = "windows")]
             {
                 Command::new("cmd")
                     .args(["/C", command_str])
                     .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                    .env("PATH", enhanced_path)
+                    .env("PATH", path_env)
                     .output()
             }
             #[cfg(not(target_os = "windows"))]
             {
                 Command::new("cmd")
                     .args(["/C", command_str])
-                    .env("PATH", enhanced_path)
+                    .env("PATH", path_env)
                     .output()
             }
         } else {
             Command::new("sh")
                 .args(["-c", command_str])
-                .env("PATH", enhanced_path)
+                .env("PATH", path_env)
                 .output()
         };
 
@@ -78,6 +106,70 @@ impl CommandExecutor {
             Ok(output) => CommandResult::from_output(output),
             Err(e) => CommandResult::from_error(e),
         }
+    }
+
+    /// 扫描安装器并扩展 PATH
+    ///
+    /// 从命令字符串中提取工具路径，扫描安装器，返回扩展后的 PATH
+    ///
+    /// # 参数
+    /// - command_str: 命令字符串（如 "/usr/local/bin/gemini --version"）
+    /// - base_path: 基础 PATH
+    ///
+    /// # 返回
+    /// - Some(String): 扩展后的 PATH
+    /// - None: 未找到安装器或无法提取路径
+    fn scan_installer_and_extend_path(&self, command_str: &str, base_path: &str) -> Option<String> {
+        use crate::utils::scan_installer_paths;
+        use std::collections::HashSet;
+
+        // 1. 从命令字符串中提取工具路径（第一个词）
+        let tool_path = command_str.split_whitespace().next()?;
+
+        // 仅处理绝对路径（以 / 或 C:\ 开头）
+        if !tool_path.starts_with('/') && !tool_path.contains(":\\") {
+            return None;
+        }
+
+        tracing::info!("从命令中提取工具路径: {}", tool_path);
+
+        // 2. 扫描安装器路径
+        let installer_candidates = scan_installer_paths(tool_path);
+
+        if installer_candidates.is_empty() {
+            tracing::warn!("未扫描到任何安装器路径");
+            return None;
+        }
+
+        // 3. 提取安装器所在的目录（去重）
+        let mut installer_dirs = HashSet::new();
+
+        for candidate in installer_candidates {
+            if let Some(parent) = std::path::Path::new(&candidate.path).parent() {
+                let parent_str = parent.to_string_lossy().to_string();
+                installer_dirs.insert(parent_str);
+                tracing::info!(
+                    "扫描到安装器 {:?} 在目录: {}",
+                    candidate.installer_type,
+                    parent.display()
+                );
+            }
+        }
+
+        if installer_dirs.is_empty() {
+            return None;
+        }
+
+        // 4. 构建扩展 PATH（安装器目录 + 原 PATH）
+        let separator = self.platform.path_separator();
+        let installer_paths: Vec<String> = installer_dirs.into_iter().collect();
+
+        Some(format!(
+            "{}{}{}",
+            installer_paths.join(separator),
+            separator,
+            base_path
+        ))
     }
 
     /// 执行命令（异步）
