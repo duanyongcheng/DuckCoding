@@ -15,7 +15,7 @@ use serde::Serialize;
 use tauri::Emitter;
 use tracing::{debug, warn};
 
-use crate::services::config::ConfigService;
+use crate::services::config_legacy::ConfigService;
 use crate::utils::file_helpers::file_checksum;
 use crate::Tool;
 

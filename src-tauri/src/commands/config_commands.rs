@@ -52,7 +52,7 @@ fn build_reqwest_client() -> Result<reqwest::Client, String> {
 /// 检测外部配置变更
 #[tauri::command]
 pub async fn get_external_changes() -> Result<Vec<ExternalConfigChange>, String> {
-    ::duckcoding::services::config::ConfigService::detect_external_changes()
+    ::duckcoding::services::config_legacy::ConfigService::detect_external_changes()
         .map_err(|e| e.to_string())
 }
 
@@ -60,7 +60,7 @@ pub async fn get_external_changes() -> Result<Vec<ExternalConfigChange>, String>
 #[tauri::command]
 pub async fn ack_external_change(tool: String) -> Result<(), String> {
     let tool_obj = Tool::by_id(&tool).ok_or_else(|| format!("❌ 未知的工具: {tool}"))?;
-    ::duckcoding::services::config::ConfigService::acknowledge_external_change(&tool_obj)
+    ::duckcoding::services::config_legacy::ConfigService::acknowledge_external_change(&tool_obj)
         .map_err(|e| e.to_string())
 }
 
@@ -72,7 +72,7 @@ pub async fn import_native_change(
     as_new: bool,
 ) -> Result<ImportExternalChangeResult, String> {
     let tool_obj = Tool::by_id(&tool).ok_or_else(|| format!("❌ 未知的工具: {tool}"))?;
-    ::duckcoding::services::config::ConfigService::import_external_change(
+    ::duckcoding::services::config_legacy::ConfigService::import_external_change(
         &tool_obj, &profile, as_new,
     )
     .map_err(|e| e.to_string())

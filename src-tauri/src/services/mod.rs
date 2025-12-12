@@ -11,6 +11,7 @@
 
 pub mod balance;
 pub mod config;
+pub mod config_legacy; // 旧配置服务，待删除
 pub mod config_watcher;
 pub mod migration_manager;
 pub mod profile_manager; // Profile管理（v2.1）
@@ -22,7 +23,8 @@ pub mod update;
 
 // 重新导出服务
 pub use balance::*;
-pub use config::*;
+pub use config::types::*; // 仅导出类型，避免冲突
+pub use config_legacy::ConfigService; // 保持旧接口兼容
 pub use config_watcher::*;
 pub use migration_manager::{create_migration_manager, MigrationManager};
 pub use profile_manager::{
