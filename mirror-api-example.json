@@ -1,0 +1,49 @@
+{
+  "tools": [
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "latest_version": "2.0.61",
+      "mirror_version": "2.0.61",
+      "is_stale": false,
+      "release_date": "2025-12-10T10:30:00Z",
+      "download_url": "https://registry.npmmirror.com/@anthropic-ai/claude-code/-/claude-code-2.0.61.tgz",
+      "release_notes_url": "https://github.com/anthropics/claude-code/releases/tag/v2.0.61",
+      "source": "npm",
+      "package_name": "@anthropic-ai/claude-code",
+      "repository": "https://github.com/anthropics/claude-code",
+      "updated_at": "2025-12-10T10:35:22Z"
+    },
+    {
+      "id": "codex",
+      "name": "CodeX",
+      "latest_version": "0.72.0",
+      "mirror_version": "0.70.0",
+      "is_stale": true,
+      "release_date": "2025-12-08T15:20:00Z",
+      "download_url": "https://registry.npmmirror.com/@openai/codex/-/codex-0.70.0.tgz",
+      "release_notes_url": "https://github.com/openai/codex/releases/tag/v0.72.0",
+      "source": "npm",
+      "package_name": "@openai/codex",
+      "repository": "https://github.com/openai/codex",
+      "updated_at": "2025-12-09T08:15:30Z"
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "latest_version": "1.5.3",
+      "mirror_version": "1.5.3",
+      "is_stale": false,
+      "release_date": "2025-12-05T09:00:00Z",
+      "download_url": "https://registry.npmmirror.com/@google/gemini-cli/-/gemini-cli-1.5.3.tgz",
+      "release_notes_url": "https://github.com/google/gemini-cli/releases/tag/v1.5.3",
+      "source": "npm",
+      "package_name": "@google/gemini-cli",
+      "repository": "https://github.com/google/gemini-cli",
+      "updated_at": "2025-12-05T09:30:45Z"
+    }
+  ],
+  "updated_at": "2025-12-11T12:00:00Z",
+  "status": "success",
+  "check_duration_ms": 1234
+}
