@@ -12,7 +12,7 @@ export interface UseToolScannerParams {
   onScanEnd: () => void;
   onValidationStart: () => void;
   onValidationEnd: () => void;
-  onValidationError: (error: string) => void;
+  onValidationError: (error: string | null) => void;
   onValidationSuccess: (version: string) => void;
 }
 

@@ -8,10 +8,12 @@ import type { InstallerCandidate } from '@/lib/tauri-commands';
 import { PathValidator } from '../components/PathValidator';
 import { InstallerSelector } from '../components/InstallerSelector';
 
+type InstallMethod = 'npm' | 'brew' | 'official' | 'other';
+
 interface LocalManualConfigProps {
   toolName: string;
   manualPath: string;
-  installMethod: string;
+  installMethod: InstallMethod;
   installerPath: string;
   installerCandidates: InstallerCandidate[];
   showCustomInstaller: boolean;
@@ -23,7 +25,7 @@ interface LocalManualConfigProps {
   onBrowse: () => void;
   onValidate: () => void;
   onScan: () => void;
-  onInstallMethodChange: (method: string) => void;
+  onInstallMethodChange: (method: InstallMethod) => void;
   onInstallerPathChange: (path: string) => void;
   onShowCustomInstallerChange: () => void;
   onBrowseInstaller: () => void;

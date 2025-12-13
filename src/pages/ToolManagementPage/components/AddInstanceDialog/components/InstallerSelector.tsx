@@ -17,7 +17,9 @@ import { InfoIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { InstallerCandidate } from '@/lib/tauri-commands';
 
-const INSTALL_METHODS = [
+type InstallMethod = 'npm' | 'brew' | 'official' | 'other';
+
+const INSTALL_METHODS: Array<{ id: InstallMethod; name: string; description: string }> = [
   { id: 'npm', name: 'npm', description: '使用 npm 安装' },
   { id: 'brew', name: 'Homebrew', description: '使用 brew 安装（仅 macOS）' },
   { id: 'official', name: '官方脚本', description: '使用官方安装脚本' },
@@ -27,11 +29,11 @@ const INSTALL_METHODS = [
 interface InstallerSelectorProps {
   installerCandidates: InstallerCandidate[];
   selectedPath: string;
-  installMethod: string;
+  installMethod: InstallMethod;
   showCustomMode: boolean;
   disabled?: boolean;
   onInstallerSelect: (path: string) => void;
-  onInstallMethodChange: (method: string) => void;
+  onInstallMethodChange: (method: InstallMethod) => void;
   onCustomModeToggle: () => void;
   onBrowse: () => void;
 }
