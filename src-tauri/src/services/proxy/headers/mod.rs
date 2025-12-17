@@ -36,7 +36,7 @@ pub struct ProcessedRequest {
 /// - 处理其他 headers（添加/修改/删除）
 /// - 处理请求体（如需要签名等特殊处理）
 #[async_trait]
-pub trait RequestProcessor: Send + Sync {
+pub trait RequestProcessor: Send + Sync + std::fmt::Debug {
     /// 返回工具标识符
     fn tool_id(&self) -> &str;
 

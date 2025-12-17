@@ -14,6 +14,7 @@ use reqwest::header::HeaderMap as ReqwestHeaderMap;
 /// - URL 构建：使用标准拼接（无特殊逻辑）
 /// - 认证方式：Bearer Token
 /// - Authorization header 格式：`Bearer sk-ant-xxx`
+#[derive(Debug)]
 pub struct ClaudeHeadersProcessor;
 
 #[async_trait]
