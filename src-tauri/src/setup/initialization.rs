@@ -123,7 +123,7 @@ async fn run_migrations() -> Result<(), Box<dyn std::error::Error>> {
 /// 自动启动配置的代理
 async fn auto_start_proxies(
     proxy_manager: &Arc<ProxyManager>,
-    profile_manager: &Arc<tokio::sync::RwLock<ProfileManager>>,
+    _profile_manager: &Arc<tokio::sync::RwLock<ProfileManager>>,
 ) {
     duckcoding::auto_start_proxies(proxy_manager).await;
 }

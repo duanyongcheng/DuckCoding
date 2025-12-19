@@ -213,6 +213,7 @@ fn main() {
         .manage(watcher_state)
         .manage(update_service_state)
         .manage(tool_registry_state)
+        .manage(profile_manager_state)
         .setup(|app| {
             setup_app_hooks(app)?;
             Ok(())

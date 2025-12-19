@@ -23,6 +23,7 @@ pub struct ClaudeSettingsPayload {
 
 /// Gemini CLI 环境变量 Payload
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct GeminiEnvPayload {
     pub api_key: String,
     pub base_url: String,
