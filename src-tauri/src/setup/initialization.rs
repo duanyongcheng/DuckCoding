@@ -156,7 +156,11 @@ pub async fn initialize_app() -> Result<InitializationContext, Box<dyn std::erro
     let proxy_manager_for_auto_start = proxy_manager.clone();
     let profile_manager_for_auto_start = profile_manager.clone();
     tauri::async_runtime::spawn(async move {
-        auto_start_proxies(&proxy_manager_for_auto_start, &profile_manager_for_auto_start).await;
+        auto_start_proxies(
+            &proxy_manager_for_auto_start,
+            &profile_manager_for_auto_start,
+        )
+        .await;
     });
 
     Ok(InitializationContext {

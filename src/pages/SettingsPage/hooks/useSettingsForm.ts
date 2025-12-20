@@ -113,7 +113,6 @@ export function useSettingsForm({ initialConfig, onConfigChange }: UseSettingsFo
     proxyUsername,
     proxyPassword,
     proxyBypassUrls,
-    globalConfig,
     onConfigChange,
   ]);
 

@@ -1,6 +1,6 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::ToolStatus;
-use crate::commands::error::{AppError, AppResult};
 use ::duckcoding::models::InstallMethod;
 
 /// 手动添加工具实例（保存用户指定的路径）

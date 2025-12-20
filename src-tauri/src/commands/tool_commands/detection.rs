@@ -1,6 +1,6 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::ToolStatus;
-use crate::commands::error::{AppError, AppResult};
 use ::duckcoding::utils::{parse_version_string, CommandExecutor, ToolCandidate};
 
 /// 扫描所有工具候选（用于自动扫描）

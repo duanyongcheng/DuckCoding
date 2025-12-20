@@ -1,7 +1,7 @@
 //! Profile 管理 Tauri 命令（v2.1 - 简化版）
 
-use ::duckcoding::services::profile_manager::ProfileDescriptor;
 use super::error::AppResult;
+use ::duckcoding::services::profile_manager::ProfileDescriptor;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -89,7 +89,7 @@ pub async fn pm_get_active_profile(
     let name = manager.get_active_profile_name(&tool_id)?;
 
     if let Some(profile_name) = name {
-        drop(manager);  // 释放读锁
+        drop(manager); // 释放读锁
         pm_get_profile(state, tool_id, profile_name).await.map(Some)
     } else {
         Ok(None)
@@ -104,7 +104,7 @@ pub async fn pm_save_profile(
     name: String,
     input: ProfileInput,
 ) -> AppResult<()> {
-    let manager = state.manager.write().await;  // 写锁
+    let manager = state.manager.write().await; // 写锁
 
     match tool_id.as_str() {
         "claude-code" => {

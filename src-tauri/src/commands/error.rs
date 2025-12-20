@@ -74,14 +74,4 @@
 //!
 //! 重导出 core::error 中的类型供 commands 层使用
 
-pub use ::duckcoding::core::error::{AppError, AppResult, ErrorContext};
-
-/// 便捷函数：将 anyhow::Error 转换为 String（用于兼容旧代码）
-pub fn anyhow_to_string(err: anyhow::Error) -> String {
-    err.to_string()
-}
-
-/// 便捷函数：将 AppError 转换为 String（用于兼容旧代码）
-pub fn app_error_to_string(err: AppError) -> String {
-    err.to_string()
-}
+pub use ::duckcoding::core::error::{AppError, AppResult};

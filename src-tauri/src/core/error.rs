@@ -589,4 +589,3 @@ impl Serialize for AppError {
         }
     }
 }
-

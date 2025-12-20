@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::State;
 
+use crate::commands::profile_commands::ProfileManagerState;
 use ::duckcoding::services::proxy::ProxyManager;
 use ::duckcoding::services::proxy_config_manager::ProxyConfigManager;
 use ::duckcoding::utils::config::read_global_config;
-use crate::commands::profile_commands::ProfileManagerState;
 
 // ==================== 类型定义 ====================
 
@@ -258,7 +258,7 @@ pub async fn start_tool_proxy(
             }
 
             // 回滚 Profile 激活状态（需要写锁）
-            drop(profile_mgr);  // 释放读锁
+            drop(profile_mgr); // 释放读锁
             let profile_mgr_write = profile_state.manager.write().await;
             if let Some(name) = backup_profile {
                 if let Err(rollback_err) = profile_mgr_write.activate_profile(&tool_id, &name) {

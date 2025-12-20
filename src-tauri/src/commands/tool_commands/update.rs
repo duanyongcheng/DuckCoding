@@ -1,6 +1,6 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::{ToolStatus, UpdateResult};
-use crate::commands::error::{AppError, AppResult};
 use ::duckcoding::models::Tool;
 use ::duckcoding::services::proxy::config::apply_global_proxy;
 use ::duckcoding::services::VersionService;
@@ -14,8 +14,8 @@ pub async fn check_update(tool: String) -> AppResult<UpdateResult> {
     #[cfg(debug_assertions)]
     tracing::debug!(tool = %tool, "检查更新（使用VersionService）");
 
-    let tool_obj = Tool::by_id(&tool)
-        .ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
+    let tool_obj =
+        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
 
     let version_service = VersionService::new();
 

@@ -1,6 +1,6 @@
+use crate::commands::error::AppResult;
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::NodeEnvironment;
-use crate::commands::error::AppResult;
 use ::duckcoding::utils::platform::PlatformInfo;
 use std::process::Command;
 

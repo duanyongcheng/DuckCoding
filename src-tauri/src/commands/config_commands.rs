@@ -1,7 +1,7 @@
 // 配置管理相关命令
 
-use serde_json::Value;
 use super::error::{AppError, AppResult};
+use serde_json::Value;
 
 use ::duckcoding::services::config::{
     self, claude, codex, gemini, ClaudeSettingsPayload, CodexSettingsPayload, ExternalConfigChange,
@@ -57,8 +57,8 @@ pub async fn get_external_changes() -> Result<Vec<ExternalConfigChange>, String>
 /// 确认外部变更（清除脏标记并刷新 checksum）
 #[tauri::command]
 pub async fn ack_external_change(tool: String) -> AppResult<()> {
-    let tool_obj = Tool::by_id(&tool)
-        .ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
+    let tool_obj =
+        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
     Ok(config::acknowledge_external_change(&tool_obj)?)
 }
 
@@ -69,8 +69,8 @@ pub async fn import_native_change(
     profile: String,
     as_new: bool,
 ) -> AppResult<ImportExternalChangeResult> {
-    let tool_obj = Tool::by_id(&tool)
-        .ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
+    let tool_obj =
+        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
     Ok(config::import_external_change(&tool_obj, &profile, as_new)?)
 }
 
