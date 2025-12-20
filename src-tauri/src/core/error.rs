@@ -1,3 +1,4 @@
+use serde::Serialize;
 use thiserror::Error;
 
 /// 应用错误类型
@@ -7,6 +8,7 @@ use thiserror::Error;
 /// - 每个错误类型携带上下文信息
 /// - 支持错误链（通过 #[from] 自动转换）
 /// - 易于扩展（新增枚举变体即可）
+/// - 实现 Serialize 以支持 Tauri 命令（source 字段会转为字符串）
 #[derive(Debug, Error)]
 pub enum AppError {
     // ==================== 工具相关错误 ====================
@@ -326,3 +328,265 @@ macro_rules! ensure {
         }
     };
 }
+
+// ==================== Serde 序列化实现 ====================
+
+/// 自定义序列化实现，将 source 字段转换为字符串
+impl Serialize for AppError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        match self {
+            // 工具相关错误
+            AppError::ToolNotFound { tool } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "ToolNotFound")?;
+                state.serialize_field("tool", tool)?;
+                state.end()
+            }
+            AppError::ToolNotInstalled { tool } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "ToolNotInstalled")?;
+                state.serialize_field("tool", tool)?;
+                state.end()
+            }
+            AppError::ToolAlreadyInstalled { tool, version } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "ToolAlreadyInstalled")?;
+                state.serialize_field("tool", tool)?;
+                state.serialize_field("version", version)?;
+                state.end()
+            }
+            AppError::InstallationFailed { tool, reason } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "InstallationFailed")?;
+                state.serialize_field("tool", tool)?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+            AppError::VersionCheckFailed { tool, reason } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "VersionCheckFailed")?;
+                state.serialize_field("tool", tool)?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+
+            // 配置相关错误
+            AppError::ConfigNotFound { path } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "ConfigNotFound")?;
+                state.serialize_field("path", path)?;
+                state.end()
+            }
+            AppError::InvalidConfig { path, reason } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "InvalidConfig")?;
+                state.serialize_field("path", path)?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+            AppError::ConfigReadError { path, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "ConfigReadError")?;
+                state.serialize_field("path", path)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::ConfigWriteError { path, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "ConfigWriteError")?;
+                state.serialize_field("path", path)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::ProfileNotFound { profile } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "ProfileNotFound")?;
+                state.serialize_field("profile", profile)?;
+                state.end()
+            }
+            AppError::ProfileAlreadyExists { profile } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "ProfileAlreadyExists")?;
+                state.serialize_field("profile", profile)?;
+                state.end()
+            }
+
+            // 网络相关错误
+            AppError::NetworkError { url, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "NetworkError")?;
+                state.serialize_field("url", url)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::ProxyConfigError { reason } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "ProxyConfigError")?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+            AppError::ApiError {
+                endpoint,
+                status_code,
+                body,
+            } => {
+                let mut state = serializer.serialize_struct("AppError", 4)?;
+                state.serialize_field("type", "ApiError")?;
+                state.serialize_field("endpoint", endpoint)?;
+                state.serialize_field("status_code", status_code)?;
+                state.serialize_field("body", body)?;
+                state.end()
+            }
+            AppError::DownloadError { url, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "DownloadError")?;
+                state.serialize_field("url", url)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+
+            // 文件系统错误
+            AppError::FileNotFound { path } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "FileNotFound")?;
+                state.serialize_field("path", path)?;
+                state.end()
+            }
+            AppError::DirCreationError { path, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "DirCreationError")?;
+                state.serialize_field("path", path)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::PermissionDenied { path, operation } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "PermissionDenied")?;
+                state.serialize_field("path", path)?;
+                state.serialize_field("operation", operation)?;
+                state.end()
+            }
+
+            // 解析错误
+            AppError::JsonParseError { context, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "JsonParseError")?;
+                state.serialize_field("context", context)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::TomlParseError { context, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "TomlParseError")?;
+                state.serialize_field("context", context)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::TomlSerializeError { context, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "TomlSerializeError")?;
+                state.serialize_field("context", context)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+
+            // 业务逻辑错误
+            AppError::EnvironmentError { requirement } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "EnvironmentError")?;
+                state.serialize_field("requirement", requirement)?;
+                state.end()
+            }
+            AppError::ValidationError { field, reason } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "ValidationError")?;
+                state.serialize_field("field", field)?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+            AppError::Timeout {
+                operation,
+                timeout_secs,
+            } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "Timeout")?;
+                state.serialize_field("operation", operation)?;
+                state.serialize_field("timeout_secs", timeout_secs)?;
+                state.end()
+            }
+            AppError::Unimplemented { feature, platform } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "Unimplemented")?;
+                state.serialize_field("feature", feature)?;
+                state.serialize_field("platform", platform)?;
+                state.end()
+            }
+
+            // 更新相关错误
+            AppError::UpdateCheckFailed { reason } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "UpdateCheckFailed")?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+            AppError::UpdateDownloadFailed { version, source } => {
+                let mut state = serializer.serialize_struct("AppError", 3)?;
+                state.serialize_field("type", "UpdateDownloadFailed")?;
+                state.serialize_field("version", version)?;
+                state.serialize_field("error", &source.to_string())?;
+                state.end()
+            }
+            AppError::UpdateInstallFailed { reason } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "UpdateInstallFailed")?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+
+            // 认证相关错误
+            AppError::InvalidApiKey => {
+                let mut state = serializer.serialize_struct("AppError", 1)?;
+                state.serialize_field("type", "InvalidApiKey")?;
+                state.end()
+            }
+            AppError::AuthenticationFailed { reason } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "AuthenticationFailed")?;
+                state.serialize_field("reason", reason)?;
+                state.end()
+            }
+            AppError::Forbidden { resource } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "Forbidden")?;
+                state.serialize_field("resource", resource)?;
+                state.end()
+            }
+
+            // 通用错误
+            AppError::Internal { message } => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "Internal")?;
+                state.serialize_field("message", message)?;
+                state.end()
+            }
+            AppError::Custom(msg) => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "Custom")?;
+                state.serialize_field("message", msg)?;
+                state.end()
+            }
+            AppError::Other(err) => {
+                let mut state = serializer.serialize_struct("AppError", 2)?;
+                state.serialize_field("type", "Other")?;
+                state.serialize_field("message", &err.to_string())?;
+                state.end()
+            }
+        }
+    }
+}
+

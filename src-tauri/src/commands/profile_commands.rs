@@ -1,7 +1,7 @@
 //! Profile 管理 Tauri 命令（v2.1 - 简化版）
 
 use ::duckcoding::services::profile_manager::ProfileDescriptor;
-use anyhow::Result;
+use super::error::AppResult;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -36,9 +36,9 @@ pub enum ProfileInput {
 #[tauri::command]
 pub async fn pm_list_all_profiles(
     state: tauri::State<'_, ProfileManagerState>,
-) -> Result<Vec<ProfileDescriptor>, String> {
+) -> AppResult<Vec<ProfileDescriptor>> {
     let manager = state.manager.read().await;
-    manager.list_all_descriptors().map_err(|e| e.to_string())
+    Ok(manager.list_all_descriptors()?)
 }
 
 /// 列出指定工具的 Profile 名称
@@ -46,9 +46,9 @@ pub async fn pm_list_all_profiles(
 pub async fn pm_list_tool_profiles(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
-) -> Result<Vec<String>, String> {
+) -> AppResult<Vec<String>> {
     let manager = state.manager.read().await;
-    manager.list_profiles(&tool_id).map_err(|e| e.to_string())
+    Ok(manager.list_profiles(&tool_id)?)
 }
 
 /// 获取指定 Profile（返回 JSON 供前端使用）
@@ -57,29 +57,23 @@ pub async fn pm_get_profile(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
     name: String,
-) -> Result<serde_json::Value, String> {
+) -> AppResult<serde_json::Value> {
     let manager = state.manager.read().await;
 
     let value = match tool_id.as_str() {
         "claude-code" => {
-            let profile = manager
-                .get_claude_profile(&name)
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(&profile).map_err(|e| e.to_string())?
+            let profile = manager.get_claude_profile(&name)?;
+            serde_json::to_value(&profile)?
         }
         "codex" => {
-            let profile = manager
-                .get_codex_profile(&name)
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(&profile).map_err(|e| e.to_string())?
+            let profile = manager.get_codex_profile(&name)?;
+            serde_json::to_value(&profile)?
         }
         "gemini-cli" => {
-            let profile = manager
-                .get_gemini_profile(&name)
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(&profile).map_err(|e| e.to_string())?
+            let profile = manager.get_gemini_profile(&name)?;
+            serde_json::to_value(&profile)?
         }
-        _ => return Err(format!("不支持的工具 ID: {}", tool_id)),
+        _ => return Err(super::error::AppError::ToolNotFound { tool: tool_id }),
     };
 
     Ok(value)
@@ -90,11 +84,9 @@ pub async fn pm_get_profile(
 pub async fn pm_get_active_profile(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
-) -> Result<Option<serde_json::Value>, String> {
+) -> AppResult<Option<serde_json::Value>> {
     let manager = state.manager.read().await;
-    let name = manager
-        .get_active_profile_name(&tool_id)
-        .map_err(|e| e.to_string())?;
+    let name = manager.get_active_profile_name(&tool_id)?;
 
     if let Some(profile_name) = name {
         drop(manager);  // 释放读锁
@@ -111,15 +103,18 @@ pub async fn pm_save_profile(
     tool_id: String,
     name: String,
     input: ProfileInput,
-) -> Result<(), String> {
+) -> AppResult<()> {
     let manager = state.manager.write().await;  // 写锁
 
     match tool_id.as_str() {
         "claude-code" => {
             if let ProfileInput::Claude { api_key, base_url } = input {
-                manager.save_claude_profile(&name, api_key, base_url)
+                Ok(manager.save_claude_profile(&name, api_key, base_url)?)
             } else {
-                Err(anyhow::anyhow!("Claude Code 需要 Claude Profile 数据"))
+                Err(super::error::AppError::ValidationError {
+                    field: "input".to_string(),
+                    reason: "Claude Code 需要 Claude Profile 数据".to_string(),
+                })
             }
         }
         "codex" => {
@@ -129,9 +124,12 @@ pub async fn pm_save_profile(
                 wire_api,
             } = input
             {
-                manager.save_codex_profile(&name, api_key, base_url, Some(wire_api))
+                Ok(manager.save_codex_profile(&name, api_key, base_url, Some(wire_api))?)
             } else {
-                Err(anyhow::anyhow!("Codex 需要 Codex Profile 数据"))
+                Err(super::error::AppError::ValidationError {
+                    field: "input".to_string(),
+                    reason: "Codex 需要 Codex Profile 数据".to_string(),
+                })
             }
         }
         "gemini-cli" => {
@@ -141,14 +139,16 @@ pub async fn pm_save_profile(
                 model,
             } = input
             {
-                manager.save_gemini_profile(&name, api_key, base_url, model)
+                Ok(manager.save_gemini_profile(&name, api_key, base_url, model)?)
             } else {
-                Err(anyhow::anyhow!("Gemini CLI 需要 Gemini Profile 数据"))
+                Err(super::error::AppError::ValidationError {
+                    field: "input".to_string(),
+                    reason: "Gemini CLI 需要 Gemini Profile 数据".to_string(),
+                })
             }
         }
-        _ => Err(anyhow::anyhow!("不支持的工具 ID: {}", tool_id)),
+        _ => Err(super::error::AppError::ToolNotFound { tool: tool_id }),
     }
-    .map_err(|e| e.to_string())
 }
 
 /// 删除 Profile
@@ -157,11 +157,9 @@ pub async fn pm_delete_profile(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
     name: String,
-) -> Result<(), String> {
+) -> AppResult<()> {
     let manager = state.manager.write().await;
-    manager
-        .delete_profile(&tool_id, &name)
-        .map_err(|e| e.to_string())
+    Ok(manager.delete_profile(&tool_id, &name)?)
 }
 
 /// 激活 Profile
@@ -170,11 +168,9 @@ pub async fn pm_activate_profile(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
     name: String,
-) -> Result<(), String> {
+) -> AppResult<()> {
     let manager = state.manager.write().await;
-    manager
-        .activate_profile(&tool_id, &name)
-        .map_err(|e| e.to_string())
+    Ok(manager.activate_profile(&tool_id, &name)?)
 }
 
 /// 获取当前激活的 Profile 名称
@@ -182,11 +178,9 @@ pub async fn pm_activate_profile(
 pub async fn pm_get_active_profile_name(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
-) -> Result<Option<String>, String> {
+) -> AppResult<Option<String>> {
     let manager = state.manager.read().await;
-    manager
-        .get_active_profile_name(&tool_id)
-        .map_err(|e| e.to_string())
+    Ok(manager.get_active_profile_name(&tool_id)?)
 }
 
 /// 从原生配置文件捕获 Profile
@@ -195,9 +189,7 @@ pub async fn pm_capture_from_native(
     state: tauri::State<'_, ProfileManagerState>,
     tool_id: String,
     name: String,
-) -> Result<(), String> {
+) -> AppResult<()> {
     let manager = state.manager.write().await;
-    manager
-        .capture_from_native(&tool_id, &name)
-        .map_err(|e| e.to_string())
+    Ok(manager.capture_from_native(&tool_id, &name)?)
 }

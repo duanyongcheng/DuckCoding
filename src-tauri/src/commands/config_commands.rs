@@ -1,6 +1,7 @@
 // 配置管理相关命令
 
 use serde_json::Value;
+use super::error::{AppError, AppResult};
 
 use ::duckcoding::services::config::{
     self, claude, codex, gemini, ClaudeSettingsPayload, CodexSettingsPayload, ExternalConfigChange,
@@ -55,9 +56,10 @@ pub async fn get_external_changes() -> Result<Vec<ExternalConfigChange>, String>
 
 /// 确认外部变更（清除脏标记并刷新 checksum）
 #[tauri::command]
-pub async fn ack_external_change(tool: String) -> Result<(), String> {
-    let tool_obj = Tool::by_id(&tool).ok_or_else(|| format!("❌ 未知的工具: {tool}"))?;
-    config::acknowledge_external_change(&tool_obj).map_err(|e| e.to_string())
+pub async fn ack_external_change(tool: String) -> AppResult<()> {
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
+    Ok(config::acknowledge_external_change(&tool_obj)?)
 }
 
 /// 将外部修改导入集中仓
@@ -66,9 +68,10 @@ pub async fn import_native_change(
     tool: String,
     profile: String,
     as_new: bool,
-) -> Result<ImportExternalChangeResult, String> {
-    let tool_obj = Tool::by_id(&tool).ok_or_else(|| format!("❌ 未知的工具: {tool}"))?;
-    config::import_external_change(&tool_obj, &profile, as_new).map_err(|e| e.to_string())
+) -> AppResult<ImportExternalChangeResult> {
+    let tool_obj = Tool::by_id(&tool)
+        .ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
+    Ok(config::import_external_change(&tool_obj, &profile, as_new)?)
 }
 
 #[tauri::command]
