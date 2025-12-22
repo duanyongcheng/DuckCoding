@@ -1,3 +1,4 @@
+use crate::commands::error::AppResult;
 use ::duckcoding::utils::{scan_installer_paths, InstallerCandidate};
 
 /// 扫描工具路径的安装器
@@ -10,8 +11,6 @@ use ::duckcoding::utils::{scan_installer_paths, InstallerCandidate};
 ///
 /// 返回：安装器候选列表
 #[tauri::command]
-pub async fn scan_installer_for_tool_path(
-    tool_path: String,
-) -> Result<Vec<InstallerCandidate>, String> {
+pub async fn scan_installer_for_tool_path(tool_path: String) -> AppResult<Vec<InstallerCandidate>> {
     Ok(scan_installer_paths(&tool_path))
 }

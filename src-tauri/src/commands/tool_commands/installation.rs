@@ -1,3 +1,4 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::{InstallResult, ToolStatus};
 use ::duckcoding::models::{InstallMethod, Tool};
@@ -46,7 +47,7 @@ pub async fn install_tool(
     tool: String,
     method: String,
     force: Option<bool>,
-) -> Result<InstallResult, String> {
+) -> AppResult<InstallResult> {
     // 应用代理配置（如果已配置）
     apply_global_proxy().ok();
 
@@ -56,14 +57,19 @@ pub async fn install_tool(
 
     // 获取工具定义
     let tool_obj =
-        Tool::by_id(&tool).ok_or_else(|| "❌ 未知的工具\n\n请联系开发者报告此问题".to_string())?;
+        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
 
     // 转换安装方法
     let install_method = match method.as_str() {
         "npm" => InstallMethod::Npm,
         "brew" => InstallMethod::Brew,
         "official" => InstallMethod::Official,
-        _ => return Err(format!("❌ 未知的安装方法: {method}")),
+        _ => {
+            return Err(AppError::ValidationError {
+                field: "method".to_string(),
+                reason: format!("未知的安装方法: {}", method),
+            })
+        }
     };
 
     // 使用 InstallerService 安装
@@ -89,7 +95,7 @@ pub async fn install_tool(
         }
         Err(e) => {
             // 安装失败，返回错误信息
-            Err(e.to_string())
+            Err(e.into())
         }
     }
 }

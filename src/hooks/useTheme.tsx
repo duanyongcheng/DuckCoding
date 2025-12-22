@@ -1,14 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-
-type Theme = 'light' | 'dark' | 'system';
-
-interface ThemeContextType {
-  theme: Theme;
-  actualTheme: 'light' | 'dark'; // 实际应用的主题（考虑系统设置）
-  setTheme: (theme: Theme) => void;
-}
-
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+import { useEffect, useState } from 'react';
+import { Theme, ThemeContext } from './theme-context';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // 从 localStorage 读取主题设置，默认为 system
@@ -58,12 +49,4 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
-  }
-  return context;
 }

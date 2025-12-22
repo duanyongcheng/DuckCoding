@@ -1,3 +1,4 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::ToolStatus;
 use ::duckcoding::models::InstallMethod;
@@ -16,20 +17,24 @@ pub async fn add_manual_tool_instance(
     install_method: String, // "npm" | "brew" | "official" | "other"
     installer_path: Option<String>,
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<ToolStatus, String> {
+) -> AppResult<ToolStatus> {
     // 解析安装方法
     let parsed_method = match install_method.as_str() {
         "npm" => InstallMethod::Npm,
         "brew" => InstallMethod::Brew,
         "official" => InstallMethod::Official,
         "other" => InstallMethod::Other,
-        _ => return Err(format!("未知的安装方法: {}", install_method)),
+        _ => {
+            return Err(AppError::ValidationError {
+                field: "install_method".to_string(),
+                reason: format!("未知的安装方法: {}", install_method),
+            })
+        }
     };
 
     // 委托给 ToolRegistry
     let registry = registry_state.registry.lock().await;
-    registry
+    Ok(registry
         .add_tool_instance(&tool_id, &path, parsed_method, installer_path)
-        .await
-        .map_err(|e| e.to_string())
+        .await?)
 }

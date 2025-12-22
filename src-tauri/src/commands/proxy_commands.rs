@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::State;
 
+use crate::commands::profile_commands::ProfileManagerState;
 use ::duckcoding::services::proxy::ProxyManager;
 use ::duckcoding::services::proxy_config_manager::ProxyConfigManager;
 use ::duckcoding::utils::config::read_global_config;
@@ -137,10 +138,9 @@ pub async fn test_proxy_request(
 async fn try_start_proxy_internal(
     tool_id: &str,
     manager_state: &ProxyManagerState,
+    profile_state: &ProfileManagerState,
 ) -> Result<(String, u16), String> {
-    use ::duckcoding::services::profile_manager::ProfileManager;
-
-    let profile_mgr = ProfileManager::new().map_err(|e| e.to_string())?;
+    let profile_mgr = profile_state.manager.read().await;
     let proxy_config_mgr = ProxyConfigManager::new().map_err(|e| e.to_string())?;
 
     // 读取当前配置
@@ -225,11 +225,10 @@ async fn try_start_proxy_internal(
 pub async fn start_tool_proxy(
     tool_id: String,
     manager_state: State<'_, ProxyManagerState>,
+    profile_state: State<'_, ProfileManagerState>,
 ) -> Result<String, String> {
-    use ::duckcoding::services::profile_manager::ProfileManager;
-
     // 备份当前状态（用于回滚）
-    let profile_mgr = ProfileManager::new().map_err(|e| e.to_string())?;
+    let profile_mgr = profile_state.manager.read().await;
     let proxy_config_mgr = ProxyConfigManager::new().map_err(|e| e.to_string())?;
 
     let backup_config = proxy_config_mgr
@@ -242,7 +241,7 @@ pub async fn start_tool_proxy(
         .map_err(|e| e.to_string())?;
 
     // 执行启动操作
-    match try_start_proxy_internal(&tool_id, &manager_state).await {
+    match try_start_proxy_internal(&tool_id, &manager_state, &profile_state).await {
         Ok((tool_id, proxy_port)) => Ok(format!(
             "✅ {} 透明代理已启动\n监听端口: {}\n已切换到代理配置",
             tool_id, proxy_port
@@ -258,9 +257,11 @@ pub async fn start_tool_proxy(
                 tracing::info!("已回滚代理配置");
             }
 
-            // 回滚 Profile 激活状态
+            // 回滚 Profile 激活状态（需要写锁）
+            drop(profile_mgr); // 释放读锁
+            let profile_mgr_write = profile_state.manager.write().await;
             if let Some(name) = backup_profile {
-                if let Err(rollback_err) = profile_mgr.activate_profile(&tool_id, &name) {
+                if let Err(rollback_err) = profile_mgr_write.activate_profile(&tool_id, &name) {
                     tracing::error!("回滚 Profile 失败: {}", rollback_err);
                 } else {
                     tracing::info!("已回滚 Profile 到: {}", name);
@@ -277,10 +278,9 @@ pub async fn start_tool_proxy(
 pub async fn stop_tool_proxy(
     tool_id: String,
     manager_state: State<'_, ProxyManagerState>,
+    profile_state: State<'_, ProfileManagerState>,
 ) -> Result<String, String> {
-    use ::duckcoding::services::profile_manager::ProfileManager;
-
-    let profile_mgr = ProfileManager::new().map_err(|e| e.to_string())?;
+    let profile_mgr = profile_state.manager.write().await;
     let proxy_config_mgr = ProxyConfigManager::new().map_err(|e| e.to_string())?;
 
     // 读取代理配置
@@ -373,11 +373,11 @@ pub async fn update_proxy_from_profile(
     tool_id: String,
     profile_name: String,
     manager_state: State<'_, ProxyManagerState>,
+    profile_state: State<'_, ProfileManagerState>,
 ) -> Result<(), String> {
-    use ::duckcoding::services::profile_manager::ProfileManager;
     use ::duckcoding::services::proxy_config_manager::ProxyConfigManager;
 
-    let profile_mgr = ProfileManager::new().map_err(|e| e.to_string())?;
+    let profile_mgr = profile_state.manager.read().await;
     let proxy_config_mgr = ProxyConfigManager::new().map_err(|e| e.to_string())?;
 
     // 根据工具类型读取 Profile
@@ -448,9 +448,8 @@ pub async fn update_proxy_config(
     tool_id: String,
     config: ::duckcoding::models::proxy_config::ToolProxyConfig,
     manager_state: State<'_, ProxyManagerState>,
+    profile_state: State<'_, ProfileManagerState>,
 ) -> Result<(), String> {
-    use ::duckcoding::services::profile_manager::ProfileManager;
-
     // ========== 运行时保护检查 ==========
     if manager_state.manager.is_running(&tool_id).await {
         return Err(format!("{} 代理正在运行，请先停止代理再修改配置", tool_id));
@@ -470,7 +469,7 @@ pub async fn update_proxy_config(
         && config.real_api_key.is_some()
         && config.real_base_url.is_some()
     {
-        let profile_mgr = ProfileManager::new().map_err(|e| e.to_string())?;
+        let profile_mgr = profile_state.manager.write().await;
         let proxy_profile_name = format!("dc_proxy_{}", tool_id.replace("-", "_"));
         let proxy_endpoint = format!("http://127.0.0.1:{}", config.port);
 

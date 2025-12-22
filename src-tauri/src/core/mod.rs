@@ -3,6 +3,9 @@ pub mod http;
 pub mod log_utils;
 pub mod logger;
 
+#[cfg(test)]
+mod error_test;
+
 // 导出核心类型
 pub use error::{AppError, AppResult, ErrorContext};
 pub use http::{build_http_client, get_global_client};

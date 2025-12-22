@@ -1,3 +1,4 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::{ToolStatus, UpdateResult};
 use ::duckcoding::models::Tool;
@@ -6,14 +7,15 @@ use ::duckcoding::services::VersionService;
 
 /// 检查工具更新（不执行更新）
 #[tauri::command]
-pub async fn check_update(tool: String) -> Result<UpdateResult, String> {
+pub async fn check_update(tool: String) -> AppResult<UpdateResult> {
     // 应用代理配置（如果已配置）
     apply_global_proxy().ok();
 
     #[cfg(debug_assertions)]
     tracing::debug!(tool = %tool, "检查更新（使用VersionService）");
 
-    let tool_obj = Tool::by_id(&tool).ok_or_else(|| format!("未知工具: {tool}"))?;
+    let tool_obj =
+        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
 
     let version_service = VersionService::new();
 
@@ -55,12 +57,9 @@ pub async fn check_update(tool: String) -> Result<UpdateResult, String> {
 pub async fn check_update_for_instance(
     instance_id: String,
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<UpdateResult, String> {
+) -> AppResult<UpdateResult> {
     let registry = registry_state.registry.lock().await;
-    registry
-        .check_update_for_instance(&instance_id)
-        .await
-        .map_err(|e| e.to_string())
+    Ok(registry.check_update_for_instance(&instance_id).await?)
 }
 
 /// 刷新数据库中所有工具的版本号（使用配置的路径检测）
@@ -73,17 +72,14 @@ pub async fn check_update_for_instance(
 #[tauri::command]
 pub async fn refresh_all_tool_versions(
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<Vec<ToolStatus>, String> {
+) -> AppResult<Vec<ToolStatus>> {
     let registry = registry_state.registry.lock().await;
-    registry
-        .refresh_all_tool_versions()
-        .await
-        .map_err(|e| e.to_string())
+    Ok(registry.refresh_all_tool_versions().await?)
 }
 
 /// 批量检查所有工具更新
 #[tauri::command]
-pub async fn check_all_updates() -> Result<Vec<UpdateResult>, String> {
+pub async fn check_all_updates() -> AppResult<Vec<UpdateResult>> {
     // 应用代理配置（如果已配置）
     apply_global_proxy().ok();
 
@@ -124,10 +120,9 @@ pub async fn update_tool_instance(
     instance_id: String,
     force: Option<bool>,
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<UpdateResult, String> {
+) -> AppResult<UpdateResult> {
     let registry = registry_state.registry.lock().await;
-    registry
+    Ok(registry
         .update_instance(&instance_id, force.unwrap_or(false))
-        .await
-        .map_err(|e| e.to_string())
+        .await?)
 }

@@ -1,3 +1,4 @@
+use crate::commands::error::AppResult;
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::NodeEnvironment;
 use ::duckcoding::utils::platform::PlatformInfo;
@@ -8,7 +9,7 @@ use std::os::windows::process::CommandExt;
 
 /// 检测 Node.js 和 npm 环境
 #[tauri::command]
-pub async fn check_node_environment() -> Result<NodeEnvironment, String> {
+pub async fn check_node_environment() -> AppResult<NodeEnvironment> {
     let enhanced_path = PlatformInfo::current().build_enhanced_path();
     let run_command = |cmd: &str| -> Result<std::process::Output, std::io::Error> {
         #[cfg(target_os = "windows")]
@@ -74,10 +75,7 @@ pub async fn validate_tool_path(
     _tool_id: String,
     path: String,
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<String, String> {
+) -> AppResult<String> {
     let registry = registry_state.registry.lock().await;
-    registry
-        .validate_tool_path(&path)
-        .await
-        .map_err(|e| e.to_string())
+    Ok(registry.validate_tool_path(&path).await?)
 }

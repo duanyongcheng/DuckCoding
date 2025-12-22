@@ -12,6 +12,7 @@ use tokio::sync::Mutex as TokioMutex;
 pub struct InitializationContext {
     pub proxy_manager: Arc<ProxyManager>,
     pub tool_registry: Arc<TokioMutex<ToolRegistry>>,
+    pub profile_manager: Arc<tokio::sync::RwLock<ProfileManager>>,
 }
 
 /// 初始化日志系统
@@ -120,7 +121,10 @@ async fn run_migrations() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// 自动启动配置的代理
-async fn auto_start_proxies(proxy_manager: &Arc<ProxyManager>) {
+async fn auto_start_proxies(
+    proxy_manager: &Arc<ProxyManager>,
+    _profile_manager: &Arc<tokio::sync::RwLock<ProfileManager>>,
+) {
     duckcoding::auto_start_proxies(proxy_manager).await;
 }
 
@@ -142,15 +146,26 @@ pub async fn initialize_app() -> Result<InitializationContext, Box<dyn std::erro
     // 4. 创建工具注册表
     let tool_registry = ToolRegistry::new().await.expect("无法创建工具注册表");
 
-    // 5. 创建代理管理器并异步启动自启动代理
+    // 5. 创建 ProfileManager 单例
+    let profile_manager = Arc::new(tokio::sync::RwLock::new(
+        ProfileManager::new().expect("初始化 ProfileManager 失败"),
+    ));
+
+    // 6. 创建代理管理器并异步启动自启动代理
     let proxy_manager = Arc::new(ProxyManager::new());
     let proxy_manager_for_auto_start = proxy_manager.clone();
+    let profile_manager_for_auto_start = profile_manager.clone();
     tauri::async_runtime::spawn(async move {
-        auto_start_proxies(&proxy_manager_for_auto_start).await;
+        auto_start_proxies(
+            &proxy_manager_for_auto_start,
+            &profile_manager_for_auto_start,
+        )
+        .await;
     });
 
     Ok(InitializationContext {
         proxy_manager,
         tool_registry: Arc::new(TokioMutex::new(tool_registry)),
+        profile_manager,
     })
 }

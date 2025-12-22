@@ -362,6 +362,9 @@ impl SessionManager {
 pub fn shutdown_session_manager() {
     tracing::info!("SessionManager 关闭信号已发送");
     CANCELLATION_TOKEN.cancel();
+
+    // 等待一小段时间让任务完成
+    std::thread::sleep(std::time::Duration::from_millis(200));
 }
 
 #[cfg(test)]

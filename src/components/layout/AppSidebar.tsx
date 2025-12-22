@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import DuckLogo from '@/assets/duck-logo.png';
 import { useToast } from '@/hooks/use-toast';
-import { useTheme } from '@/hooks/useTheme';
+import { useTheme } from '@/hooks/useThemeHook';
 import { useState, useEffect } from 'react';
 import {
   DropdownMenu,

@@ -195,6 +195,10 @@ fn main() {
         registry: init_ctx.tool_registry,
     };
 
+    let profile_manager_state = ProfileManagerState {
+        manager: init_ctx.profile_manager,
+    };
+
     // 判断单实例模式
     let single_instance_enabled = determine_single_instance_mode();
 
@@ -209,6 +213,7 @@ fn main() {
         .manage(watcher_state)
         .manage(update_service_state)
         .manage(tool_registry_state)
+        .manage(profile_manager_state)
         .setup(|app| {
             setup_app_hooks(app)?;
             Ok(())

@@ -1,3 +1,4 @@
+use crate::commands::error::{AppError, AppResult};
 use ::duckcoding::ui;
 use tauri::{Manager, WebviewWindow};
 
@@ -7,7 +8,7 @@ use tauri::{Manager, WebviewWindow};
 /// - `window`: WebviewWindow 实例
 /// - `action`: 关闭操作类型 ("minimize" 或 "quit")
 #[tauri::command]
-pub fn handle_close_action(window: WebviewWindow, action: String) -> Result<(), String> {
+pub fn handle_close_action(window: WebviewWindow, action: String) -> AppResult<()> {
     match action.as_str() {
         "minimize" => {
             // 隐藏到托盘
@@ -18,6 +19,9 @@ pub fn handle_close_action(window: WebviewWindow, action: String) -> Result<(), 
             window.app_handle().exit(0);
             Ok(())
         }
-        other => Err(format!("未知的关闭操作: {other}")),
+        other => Err(AppError::ValidationError {
+            field: "action".to_string(),
+            reason: format!("未知的关闭操作: {}", other),
+        }),
     }
 }

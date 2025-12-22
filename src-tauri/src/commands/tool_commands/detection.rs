@@ -1,3 +1,4 @@
+use crate::commands::error::{AppError, AppResult};
 use crate::commands::tool_management::ToolRegistryState;
 use crate::commands::types::ToolStatus;
 use ::duckcoding::utils::{parse_version_string, CommandExecutor, ToolCandidate};
@@ -13,12 +14,9 @@ use ::duckcoding::utils::{parse_version_string, CommandExecutor, ToolCandidate};
 pub async fn scan_all_tool_candidates(
     tool_id: String,
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<Vec<ToolCandidate>, String> {
+) -> AppResult<Vec<ToolCandidate>> {
     let registry = registry_state.registry.lock().await;
-    registry
-        .scan_tool_candidates(&tool_id)
-        .await
-        .map_err(|e| e.to_string())
+    Ok(registry.scan_tool_candidates(&tool_id).await?)
 }
 
 /// 检测单个工具但不保存（仅用于预览）
@@ -32,7 +30,7 @@ pub async fn scan_all_tool_candidates(
 pub async fn detect_tool_without_save(
     tool_id: String,
     _registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<ToolStatus, String> {
+) -> AppResult<ToolStatus> {
     let command_executor = CommandExecutor::new();
 
     // 根据工具ID确定检测命令和名称
@@ -40,7 +38,7 @@ pub async fn detect_tool_without_save(
         "claude-code" => ("claude", "Claude Code"),
         "codex" => ("codex", "CodeX"),
         "gemini-cli" => ("gemini", "Gemini CLI"),
-        _ => return Err(format!("未知工具ID: {}", tool_id)),
+        _ => return Err(AppError::ToolNotFound { tool: tool_id }),
     };
 
     // 检测工具是否存在
@@ -84,10 +82,9 @@ pub async fn detect_single_tool(
     tool_id: String,
     force_redetect: Option<bool>,
     registry_state: tauri::State<'_, ToolRegistryState>,
-) -> Result<ToolStatus, String> {
+) -> AppResult<ToolStatus> {
     let registry = registry_state.registry.lock().await;
-    registry
+    Ok(registry
         .detect_single_tool_with_cache(&tool_id, force_redetect.unwrap_or(false))
-        .await
-        .map_err(|e| e.to_string())
+        .await?)
 }
