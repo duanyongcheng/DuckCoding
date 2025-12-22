@@ -2,6 +2,8 @@
 
 本项目使用两步 workflow 实现跨仓库 PR 的评论功能。
 
+> 测试评论功能：验证 PR Check Comment workflow 是否正常工作。
+
 ## Workflows
 
 ### 1. PR Check (`pr-check.yml`)
