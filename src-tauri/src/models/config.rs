@@ -136,8 +136,12 @@ pub struct GlobalConfig {
     /// 默认值为 "0.0.0"，迁移后更新为对应的应用版本号
     #[serde(default)]
     pub version: Option<String>,
-    pub user_id: String,
-    pub system_token: String,
+    /// 已废弃，由供应商系统管理
+    #[serde(default)]
+    pub user_id: Option<String>,
+    /// 已废弃，由供应商系统管理
+    #[serde(default)]
+    pub system_token: Option<String>,
     #[serde(default)]
     pub proxy_enabled: bool,
     #[serde(default)]

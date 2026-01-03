@@ -81,10 +81,19 @@ impl Migration for GlobalConfigToProvidersMigration {
         let mut store = ProviderStore::default();
 
         // 如果 GlobalConfig 中有用户信息，填充到默认 DuckCoding 供应商
-        if !global_config.user_id.is_empty() || !global_config.system_token.is_empty() {
+        let has_user_id = global_config
+            .user_id
+            .as_ref()
+            .is_some_and(|id| !id.is_empty());
+        let has_token = global_config
+            .system_token
+            .as_ref()
+            .is_some_and(|token| !token.is_empty());
+
+        if has_user_id || has_token {
             if let Some(provider) = store.providers.get_mut(0) {
-                provider.user_id = global_config.user_id.clone();
-                provider.access_token = global_config.system_token.clone();
+                provider.user_id = global_config.user_id.clone().unwrap_or_default();
+                provider.access_token = global_config.system_token.clone().unwrap_or_default();
                 provider.updated_at = chrono::Utc::now().timestamp();
 
                 tracing::info!(
@@ -108,7 +117,7 @@ impl Migration for GlobalConfigToProvidersMigration {
             .map_err(|e| anyhow::anyhow!("序列化 ProviderStore 失败: {}", e))?;
         data_manager.json().write(&providers_path, &json_value)?;
 
-        let message = if global_config.user_id.is_empty() {
+        let message = if !has_user_id {
             "创建默认 Providers 配置（无用户信息）"
         } else {
             "成功迁移 GlobalConfig 用户信息到 Providers"

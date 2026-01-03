@@ -95,8 +95,8 @@ mod tests {
     fn test_build_proxy_url_http() {
         let config = GlobalConfig {
             version: None,
-            user_id: "test".to_string(),
-            system_token: "test".to_string(),
+            user_id: Some("test".to_string()),
+            system_token: Some("test".to_string()),
             proxy_enabled: true,
             proxy_type: Some("http".to_string()),
             proxy_host: Some("127.0.0.1".to_string()),
@@ -124,8 +124,8 @@ mod tests {
     fn test_build_proxy_url_with_auth() {
         let config = GlobalConfig {
             version: None,
-            user_id: "test".to_string(),
-            system_token: "test".to_string(),
+            user_id: Some("test".to_string()),
+            system_token: Some("test".to_string()),
             proxy_enabled: true,
             proxy_type: Some("socks5".to_string()),
             proxy_host: Some("proxy.example.com".to_string()),

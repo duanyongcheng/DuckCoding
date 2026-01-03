@@ -54,8 +54,8 @@ export interface ActiveConfig {
 }
 
 export interface GlobalConfig {
-  user_id: string;
-  system_token: string;
+  user_id?: string; // 已废弃，由供应商系统管理
+  system_token?: string; // 已废弃，由供应商系统管理
   proxy_enabled?: boolean;
   proxy_type?: 'http' | 'https' | 'socks5';
   proxy_host?: string;
