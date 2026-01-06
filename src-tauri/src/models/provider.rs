@@ -50,7 +50,7 @@ impl Default for ProviderStore {
                 id: "duckcoding".to_string(),
                 name: "DuckCoding".to_string(),
                 website_url: "https://duckcoding.com".to_string(),
-                api_address: None,
+                api_address: Some("https://jp.duckcoding.com".to_string()),
                 user_id: String::new(),
                 access_token: String::new(),
                 username: None,
