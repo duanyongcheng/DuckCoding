@@ -165,6 +165,7 @@ export function useAppEvents(options: AppEventsOptions) {
   }, [
     onNavigateToInstall,
     onNavigateToConfig,
+    onNavigateToList,
     onNavigateToSettings,
     onNavigateToTransparentProxy,
     onRefreshTools,
