@@ -8,6 +8,7 @@ import type {
   ProviderStore,
   _ProviderFormData,
   ProviderValidationResult,
+  ApiInfo,
 } from '@/types/provider';
 
 // 重新导出 Profile 相关类型供其他模块使用
@@ -17,7 +18,7 @@ export type { ProfileData, ProfileDescriptor, ProfilePayload, ToolId };
 export type { SSHConfig };
 
 // 重新导出供应商管理类型
-export type { Provider, ProviderStore, _ProviderFormData, ProviderValidationResult };
+export type { Provider, ProviderStore, _ProviderFormData, ProviderValidationResult, ApiInfo };
 
 export interface ToolStatus {
   mirrorIsStale: boolean;

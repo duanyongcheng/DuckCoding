@@ -13,6 +13,9 @@ pub struct Provider {
     pub name: String,
     /// 官网地址
     pub website_url: String,
+    /// API 地址（可选，优先于 website_url 用于 API 调用）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_address: Option<String>,
     /// 用户ID
     pub user_id: String,
     /// 系统访问令牌
@@ -47,6 +50,7 @@ impl Default for ProviderStore {
                 id: "duckcoding".to_string(),
                 name: "DuckCoding".to_string(),
                 website_url: "https://duckcoding.com".to_string(),
+                api_address: Some("https://jp.duckcoding.com".to_string()),
                 user_id: String::new(),
                 access_token: String::new(),
                 username: None,
@@ -79,6 +83,7 @@ mod tests {
             id: "test".to_string(),
             name: "Test Provider".to_string(),
             website_url: "https://test.com".to_string(),
+            api_address: Some("https://api.test.com".to_string()),
             user_id: "12345".to_string(),
             access_token: "token123".to_string(),
             username: Some("testuser".to_string()),
@@ -92,6 +97,7 @@ mod tests {
 
         assert_eq!(deserialized.id, provider.id);
         assert_eq!(deserialized.name, provider.name);
+        assert_eq!(deserialized.api_address, provider.api_address);
         assert_eq!(deserialized.username, provider.username);
     }
 }

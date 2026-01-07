@@ -70,27 +70,29 @@ export function ProviderTabs({
     <Tabs value={currentProviderId} onValueChange={onProviderChange} className="space-y-4">
       {/* 供应商标签列表和刷新按钮 */}
       <div className="flex items-center gap-4">
-        <TabsList className="h-auto p-1 bg-muted/50">
-          {providers.map((provider) => {
-            const isSelected = provider.id === currentProviderId;
-            return (
-              <TabsTrigger
-                key={provider.id}
-                value={provider.id}
-                className="data-[state=active]:bg-background"
-              >
-                <div className="flex items-center gap-2">
-                  <span>{provider.name}</span>
-                  {isSelected && (
-                    <Badge variant="default" className="text-xs px-1.5 py-0">
-                      当前
-                    </Badge>
-                  )}
-                </div>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+        <div className="flex-1 overflow-x-auto">
+          <TabsList className="h-auto p-1 bg-muted/50 inline-flex">
+            {providers.map((provider) => {
+              const isSelected = provider.id === currentProviderId;
+              return (
+                <TabsTrigger
+                  key={provider.id}
+                  value={provider.id}
+                  className="data-[state=active]:bg-background whitespace-nowrap"
+                >
+                  <div className="flex items-center gap-2">
+                    <span>{provider.name}</span>
+                    {isSelected && (
+                      <Badge variant="default" className="text-xs px-1.5 py-0">
+                        当前
+                      </Badge>
+                    )}
+                  </div>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
 
         {/* 刷新按钮 */}
         {onRefresh && (

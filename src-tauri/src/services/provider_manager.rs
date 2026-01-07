@@ -103,6 +103,7 @@ impl ProviderManager {
 
         provider.name = updated.name;
         provider.website_url = updated.website_url;
+        provider.api_address = updated.api_address;
         provider.user_id = updated.user_id;
         provider.access_token = updated.access_token;
         provider.username = updated.username;

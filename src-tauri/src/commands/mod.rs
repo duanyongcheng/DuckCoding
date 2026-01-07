@@ -10,6 +10,7 @@ pub mod proxy_commands;
 pub mod session_commands;
 pub mod startup_commands; // 开机自启动管理命令
 pub mod stats_commands;
+pub mod token_commands; // 令牌资产管理命令（NEW API 集成）
 pub mod tool_commands;
 pub mod tool_management;
 pub mod types;
@@ -29,6 +30,7 @@ pub use proxy_commands::*;
 pub use session_commands::*;
 pub use startup_commands::*; // 开机自启动管理命令
 pub use stats_commands::*;
+pub use token_commands::*; // 令牌资产管理命令（NEW API 集成）
 pub use tool_commands::*;
 pub use tool_management::*;
 pub use update_commands::*;

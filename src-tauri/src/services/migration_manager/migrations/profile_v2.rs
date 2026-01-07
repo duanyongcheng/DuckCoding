@@ -9,7 +9,8 @@
 use crate::data::DataManager;
 use crate::services::migration_manager::migration_trait::{Migration, MigrationResult};
 use crate::services::profile_manager::{
-    ActiveProfile, ActiveStore, ClaudeProfile, CodexProfile, GeminiProfile, ProfilesStore,
+    ActiveProfile, ActiveStore, ClaudeProfile, CodexProfile, GeminiProfile, ProfileSource,
+    ProfilesStore,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -216,6 +217,7 @@ impl ProfileV2Migration {
                         updated_at: Utc::now(),
                         raw_settings: Some(settings_value),
                         raw_config_json: None,
+                        source: ProfileSource::Custom,
                     };
                     profiles.insert(profile_name.clone(), profile);
                     tracing::info!("已从原始 Claude Code 配置迁移 Profile: {}", profile_name);
@@ -320,6 +322,7 @@ impl ProfileV2Migration {
                     updated_at: Utc::now(),
                     raw_config_toml,
                     raw_auth_json: Some(auth_data),
+                    source: ProfileSource::Custom,
                 };
                 profiles.insert(profile_name.clone(), profile);
                 tracing::info!("已从原始 Codex 配置迁移 Profile: {}", profile_name);
@@ -394,6 +397,7 @@ impl ProfileV2Migration {
                     updated_at: Utc::now(),
                     raw_settings: None,
                     raw_env,
+                    source: ProfileSource::Custom,
                 };
                 profiles.insert(profile_name.clone(), profile);
                 tracing::info!("已从原始 Gemini CLI 配置迁移 Profile: {}", profile_name);
@@ -488,6 +492,7 @@ impl ProfileV2Migration {
                                 updated_at: descriptor.updated_at.unwrap_or_else(Utc::now),
                                 raw_settings,
                                 raw_config_json,
+                                source: ProfileSource::Custom,
                             },
                             CodexProfile::default_placeholder(),
                             GeminiProfile::default_placeholder(),
@@ -525,6 +530,7 @@ impl ProfileV2Migration {
                                 updated_at: descriptor.updated_at.unwrap_or_else(Utc::now),
                                 raw_config_toml,
                                 raw_auth_json,
+                                source: ProfileSource::Custom,
                             },
                             GeminiProfile::default_placeholder(),
                         ))
@@ -561,6 +567,7 @@ impl ProfileV2Migration {
                                 updated_at: descriptor.updated_at.unwrap_or_else(Utc::now),
                                 raw_settings,
                                 raw_env,
+                                source: ProfileSource::Custom,
                             },
                         ))
                     }
@@ -856,6 +863,7 @@ impl ClaudeProfile {
             updated_at: Utc::now(),
             raw_settings: None,
             raw_config_json: None,
+            source: ProfileSource::Custom,
         }
     }
 }
@@ -870,6 +878,7 @@ impl CodexProfile {
             updated_at: Utc::now(),
             raw_config_toml: None,
             raw_auth_json: None,
+            source: ProfileSource::Custom,
         }
     }
 }
@@ -884,6 +893,7 @@ impl GeminiProfile {
             updated_at: Utc::now(),
             raw_settings: None,
             raw_env: None,
+            source: ProfileSource::Custom,
         }
     }
 }

@@ -6,10 +6,10 @@
 
 mod manager;
 mod native_config;
-mod types;
+pub mod types;
 
 pub use manager::ProfileManager;
 pub use types::{
     ActiveMetadata, ActiveProfile, ActiveStore, ClaudeProfile, CodexProfile, GeminiProfile,
-    ProfileDescriptor, ProfilesMetadata, ProfilesStore,
+    ProfileDescriptor, ProfileSource, ProfilesMetadata, ProfilesStore, TokenImportStatus,
 };

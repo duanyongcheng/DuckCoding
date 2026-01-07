@@ -338,6 +338,14 @@ export function ActiveProfileCard({ group, proxyRunning }: ActiveProfileCardProp
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <ConfigField label="API Key" value={activeProfile.api_key_preview} />
                   <ConfigField label="Base URL" value={activeProfile.base_url} />
+                  <ConfigField
+                    label="来源"
+                    value={
+                      activeProfile.source.type === 'Custom'
+                        ? '自定义'
+                        : '从 ' + activeProfile.source.provider_name + ' 导入'
+                    }
+                  />
                   {selectedInstance && (
                     <>
                       <ConfigField

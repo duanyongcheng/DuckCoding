@@ -12,6 +12,8 @@ export interface Provider {
   name: string;
   /** 供应商官网地址 */
   website_url: string;
+  /** API 地址（可选，优先于 website_url 用于 API 调用） */
+  api_address?: string;
   /** 用户ID */
   user_id: string;
   /** 访问令牌 */
@@ -24,6 +26,16 @@ export interface Provider {
   created_at: number;
   /** 更新时间（Unix timestamp） */
   updated_at: number;
+}
+
+/**
+ * API 地址信息
+ */
+export interface ApiInfo {
+  /** API 地址 URL */
+  url: string;
+  /** 地址描述 */
+  description: string;
 }
 
 /**

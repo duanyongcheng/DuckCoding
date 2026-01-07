@@ -41,7 +41,7 @@ impl ProfileManager {
         })
     }
 
-    fn load_profiles_store(&self) -> Result<ProfilesStore> {
+    pub fn load_profiles_store(&self) -> Result<ProfilesStore> {
         if !self.profiles_path.exists() {
             return Ok(ProfilesStore::new());
         }
@@ -49,7 +49,7 @@ impl ProfileManager {
         serde_json::from_value(value).context("反序列化 ProfilesStore 失败")
     }
 
-    fn save_profiles_store(&self, store: &ProfilesStore) -> Result<()> {
+    pub fn save_profiles_store(&self, store: &ProfilesStore) -> Result<()> {
         // 创建锁文件（与 profiles.json 同目录）
         let lock_path = self.profiles_path.with_extension("lock");
         let lock_file = File::create(&lock_path).context("创建锁文件失败")?;
@@ -121,6 +121,7 @@ impl ProfileManager {
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_config_json: None,
+                source: ProfileSource::Custom,
             }
         };
 
@@ -206,6 +207,7 @@ impl ProfileManager {
                 updated_at: Utc::now(),
                 raw_config_toml: None,
                 raw_auth_json: None,
+                source: ProfileSource::Custom,
             }
         };
 
@@ -293,6 +295,7 @@ impl ProfileManager {
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_env: None,
+                source: ProfileSource::Custom,
             }
         };
 
@@ -486,6 +489,7 @@ impl ProfileManager {
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_config_json: None,
+                source: ProfileSource::Custom,
             }
         };
 
@@ -533,6 +537,7 @@ impl ProfileManager {
                 updated_at: Utc::now(),
                 raw_config_toml: None,
                 raw_auth_json: None,
+                source: ProfileSource::Custom,
             }
         };
 
@@ -582,6 +587,7 @@ impl ProfileManager {
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_env: None,
+                source: ProfileSource::Custom,
             }
         };
 
@@ -591,6 +597,87 @@ impl ProfileManager {
 
         tracing::debug!("已创建/更新内置 Profile: {}", name);
         Ok(())
+    }
+
+    // ==================== 导入状态检测 ====================
+
+    /// 检测令牌是否已导入到任何工具
+    ///
+    /// 遍历所有工具的 Profile，检查是否存在相同 provider_id 和 remote_token_id 的导入记录
+    pub fn check_import_status(
+        &self,
+        provider_id: &str,
+        remote_token_id: i64,
+    ) -> Result<Vec<super::types::TokenImportStatus>> {
+        const TOOLS: [&str; 3] = ["claude-code", "codex", "gemini-cli"];
+        let store = self.load_profiles_store()?;
+        let mut results = Vec::new();
+
+        for &tool_id in &TOOLS {
+            let mut is_imported = false;
+            let mut imported_profile_name = None;
+
+            // 根据工具类型检查对应的 Profile 集合
+            match tool_id {
+                "claude-code" => {
+                    for (name, profile) in &store.claude_code {
+                        if let ProfileSource::ImportedFromProvider {
+                            provider_id: pid,
+                            remote_token_id: tid,
+                            ..
+                        } = &profile.source
+                        {
+                            if pid == provider_id && *tid == remote_token_id {
+                                is_imported = true;
+                                imported_profile_name = Some(name.clone());
+                                break;
+                            }
+                        }
+                    }
+                }
+                "codex" => {
+                    for (name, profile) in &store.codex {
+                        if let ProfileSource::ImportedFromProvider {
+                            provider_id: pid,
+                            remote_token_id: tid,
+                            ..
+                        } = &profile.source
+                        {
+                            if pid == provider_id && *tid == remote_token_id {
+                                is_imported = true;
+                                imported_profile_name = Some(name.clone());
+                                break;
+                            }
+                        }
+                    }
+                }
+                "gemini-cli" => {
+                    for (name, profile) in &store.gemini_cli {
+                        if let ProfileSource::ImportedFromProvider {
+                            provider_id: pid,
+                            remote_token_id: tid,
+                            ..
+                        } = &profile.source
+                        {
+                            if pid == provider_id && *tid == remote_token_id {
+                                is_imported = true;
+                                imported_profile_name = Some(name.clone());
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => unreachable!("TOOLS 数组只包含已知工具 ID"),
+            }
+
+            results.push(super::types::TokenImportStatus {
+                tool_id: tool_id.to_string(),
+                is_imported,
+                imported_profile_name,
+            });
+        }
+
+        Ok(results)
     }
 
     // ==================== 删除 ====================

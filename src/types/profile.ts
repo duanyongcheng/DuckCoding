@@ -27,7 +27,7 @@ export interface CodexProfilePayload {
 export interface GeminiProfilePayload {
   api_key: string;
   base_url: string;
-  model?: string; // 可选，不填则不修改原生配置
+  model?: string; // 可选,不填则不修改原生配置
 }
 
 /**
@@ -59,6 +59,21 @@ export interface ProfileData {
 }
 
 /**
+ * Profile 来源类型
+ */
+export type ProfileSource =
+  | { type: 'Custom' }
+  | {
+      type: 'ImportedFromProvider';
+      provider_id: string;
+      provider_name: string;
+      remote_token_id: number;
+      remote_token_name: string;
+      group: string;
+      imported_at: number; // Unix 时间戳
+    };
+
+/**
  * Profile 描述符（前端展示用）
  */
 export interface ProfileDescriptor {
@@ -66,11 +81,12 @@ export interface ProfileDescriptor {
   name: string;
   api_key_preview: string; // 脱敏显示（如 "sk-ant-***xxx"）
   base_url: string;
+  source: ProfileSource; // Profile 来源信息
   created_at: string; // ISO 8601 时间字符串
   updated_at: string; // ISO 8601 时间字符串
   is_active: boolean;
   switched_at?: string; // 激活时间（ISO 8601 时间字符串）
-  // Codex 特定字段（注意：后端是 wire_api，前端展示用 provider 兼容）
+  // Codex 特定字段（注意：后端是 wire_api,前端展示用 provider 兼容）
   wire_api?: string;
   provider?: string; // 向后兼容
   // Gemini 特定字段

@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { Check, MoreVertical, Pencil, Power, Trash2 } from 'lucide-react';
+import { Check, MoreVertical, Pencil, Power, Trash2, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -61,6 +61,36 @@ export function ProfileCard({
     }
   };
 
+  /**
+   * 获取来源显示文本和样式
+   */
+  const getSourceInfo = () => {
+    if (profile.source.type === 'Custom') {
+      return {
+        text: '自定义',
+        variant: 'secondary' as const,
+        tooltip: '用户手动创建的 Profile',
+      };
+    } else {
+      const importedAt = new Date(profile.source.imported_at * 1000);
+      return {
+        text: '从 ' + profile.source.provider_name + ' 导入',
+        variant: 'outline' as const,
+        tooltip:
+          '从供应商「' +
+          profile.source.provider_name +
+          '」的令牌「' +
+          profile.source.remote_token_name +
+          '」导入\n分组: ' +
+          profile.source.group +
+          '\n导入时间: ' +
+          importedAt.toLocaleString('zh-CN'),
+      };
+    }
+  };
+
+  const sourceInfo = getSourceInfo();
+
   return (
     <>
       <Card className={profile.is_active && !proxyRunning ? 'border-primary' : ''}>
@@ -74,6 +104,10 @@ export function ProfileCard({
                   激活中
                 </Badge>
               )}
+              <Badge variant={sourceInfo.variant} className="h-5" title={sourceInfo.tooltip}>
+                <Tag className="mr-1 h-3 w-3" />
+                {sourceInfo.text}
+              </Badge>
             </div>
             <CardDescription className="text-xs">
               API Key: {profile.api_key_preview}

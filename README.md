@@ -1,12 +1,10 @@
-# DuckCoding 一键配置工具
+# DuckCoding - AI 编程工具统一管理平台
 
 <div align="center">
 
 ![DuckCoding Logo](src/assets/duck-logo.png)
 
-**一键安装和配置 AI 编程工具的桌面应用**
-
-支持 Claude Code、CodeX、Gemini CLI
+**一键安装与配置 Claude Code / CodeX / Gemini CLI 的跨平台桌面应用**
 
 [![GitHub Release](https://img.shields.io/github/v/release/DuckCoding-dev/DuckCoding)](https://github.com/DuckCoding-dev/DuckCoding/releases)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
@@ -19,240 +17,241 @@
 
 </div>
 
-## ✨ 功能特性
-
-- **🚀 一键安装** - 自动安装 Claude Code、CodeX、Gemini CLI
-- **⚙️ 一键配置** - 快速配置 DuckCoding API 或自定义 API 端点
-- **📊 用量统计** - 实时查看账户余额和30天用量趋势
-- **🔑 一键生成令牌** - 直接在应用内创建 DuckCoding API 令牌
-- **🔄 多配置管理** - 支持保存和切换多个配置文件
-- **🎨 现代界面** - 基于 React + Tailwind CSS 的精美 UI
-- **💻 跨平台** - 支持 macOS (Intel/Apple Silicon)、Windows、Linux
-
-## 📥 下载安装
-
-前往 [Releases 页面](https://github.com/DuckCoding-dev/DuckCoding/releases) 下载适合你系统的安装包：
-
-### 桌面应用（推荐）
-
-- **macOS Universal**: `DuckCoding-macOS-Universal.dmg` (支持 Intel 和 Apple Silicon M1/M2/M3/M4/M5)
-- **Windows x64**: `DuckCoding-Windows-x64-setup.exe` 或 `DuckCoding-Windows-x64.msi`
-- **Linux x64**:
-  - Debian/Ubuntu: `DuckCoding-Linux-x64.deb`
-  - Fedora/RHEL: `DuckCoding-Linux-x64.rpm`
-  - 通用: `DuckCoding-Linux-x64.AppImage`
-
-### 平台支持说明
-
-✅ **完全支持**:
-
-- Windows 10/11 (x64) - 原生桌面应用
-- macOS 10.15+ (Intel x64 和 Apple Silicon ARM64) - 通用二进制
-- Linux (x64) - Debian/Ubuntu/Fedora/RHEL 及其他发行版
-
-❌ **不支持**:
-
-- **Windows WSL / Linux WSL**: WSL环境无法运行GUI桌面应用
-  - **解决方案**: WSL用户请使用Windows原生版本（.msi/.exe）
-
-📝 **CLI模式支持**:
-如果你只需要命令行功能（不需要GUI），可以使用 Rust CLI（需要从源码编译 `cargo build --features cli --bin duckcoding`），支持所有平台包括WSL。
-
-## 🎯 使用方法
-
-### 1. 安装工具
-
-在「安装工具」标签页选择需要安装的 AI 编程工具：
-
-- **Claude Code** - Anthropic 官方 AI 编程助手
-- **CodeX** - OpenAI 官方代码生成工具
-- **Gemini CLI** - Google Gemini 命令行工具
-
-点击「安装」按钮即可自动安装。
-
-### 2. 配置全局设置（可选）
-
-如果你想使用用量统计和一键生成令牌功能：
-
-1. 访问 [DuckCoding 控制台](https://duckcoding.com/console/token)
-2. 点击右上角头像 → 个人中心
-3. 获取「用户ID」和「系统访问令牌」
-4. 在应用的「控制台」标签页点击「配置全局设置」填入
-
-### 3. 配置 API
-
-在「配置 API」标签页：
-
-#### 方式一：一键生成（推荐）
-
-1. **选择工具** - 选择要配置的工具
-2. **点击「一键生成」** - 自动创建对应的专用分组令牌并配置
-
-#### 方式二：手动配置
-
-1. **选择工具** - 选择要配置的工具
-2. **选择提供商**
-   - **DuckCoding** - 使用 DuckCoding API（需要专用分组令牌）
-   - **自定义** - 使用自己的 API 端点
-3. **输入 API 密钥** - 填写你的 API 密钥
-4. **保存配置** - 可选：为配置命名以便后续切换
-
-### 4. 查看用量
-
-在「控制台」标签页：
-
-- **余额显示** - 查看账户总额度、已用额度、剩余额度
-- **用量图表** - 查看最近30天的用量趋势
-- **请求统计** - 查看总请求次数
-
-### 5. 切换配置
-
-在「切换配置」标签页：
-
-- 查看所有已保存的配置
-- 一键切换到不同的配置文件
-
-## 🔑 关于 DuckCoding API 令牌
-
-### 专用分组说明
-
-DuckCoding 要求每个工具使用对应的专用分组令牌：
-
-| 工具        | 必须选择的分组           |
-| ----------- | ------------------------ |
-| Claude Code | **Claude Code 专用分组** |
-| CodeX       | **CodeX 专用分组**       |
-| Gemini CLI  | **Gemini CLI 专用分组**  |
-
-❌ **不能混用**：不同工具的专用分组令牌不能互相使用
-
-✅ **一键生成**：应用会自动为你创建正确的专用分组令牌
-
-### 手动获取令牌
-
-如果需要手动创建令牌：
-
-1. 访问 [DuckCoding 令牌管理](https://duckcoding.com/console/token)
-2. 点击「创建令牌」
-3. 选择对应工具的专用分组
-4. 复制生成的令牌到应用中配置
-
-## 🛠️ 技术栈
-
-### 桌面应用
-
-- **前端**: React 19 + TypeScript + Tailwind CSS
-- **桌面框架**: Tauri 2.0
-- **后端**: Rust（完整服务层架构）
-  - InstallerService - 工具安装和版本管理
-  - VersionService - 版本检查（npm registry API）
-  - ConfigService - 配置文件管理（增量更新）
-  - CommandExecutor - 跨平台命令执行
-- **图表**: Recharts
-- **UI 组件**: Shadcn/ui + Radix UI
-- **构建工具**: Vite
-
-### Rust CLI (可选)
-
-- **CLI 框架**: clap + inquire
-- **共享服务层**: 与桌面应用相同的 Rust 服务层
-- **编译**: `cargo build --features cli --bin duckcoding`
-
-## 📖 配置文件说明
-
-应用会在以下位置创建配置文件：
-
-### Claude Code
-
-- **位置**: `~/.claude/settings.json`
-- **格式**: JSON
-- 只更新 API 相关字段，保留其他自定义配置
-
-### CodeX
-
-- **位置**: `~/.codex/config.toml` + `~/.codex/auth.json`
-- **格式**: TOML + JSON
-- 保存模型提供商配置和认证信息
-
-### Gemini CLI
-
-- **位置**: `~/.gemini/.env`（主要配置）+ `~/.gemini/settings.json`（认证设置）
-- **格式**: ENV + JSON
-- 主要配置在 `.env` 文件，`settings.json` 仅用于指定认证类型
-
-## 🔒 隐私和安全
-
-- ✅ **不收集用户数据** - 所有配置保存在本地
-- ✅ **不上传配置文件** - 应用包不包含任何用户配置
-- ✅ **安全存储** - 配置文件权限设置为仅所有者可读写 (0600)
-- ✅ **开源透明** - 所有代码公开可审查
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-### 🚀 本地开发
-
-#### 环境要求
-
-- **Node.js** 18+
-- **Rust** 1.70+
-- **系统依赖**:
-  - macOS: Xcode Command Line Tools
-  - Windows: Microsoft C++ Build Tools
-  - Linux: `build-essential` `libwebkit2gtk-4.0-dev` `libssl-dev`
-
-#### 快速开始
-
-```bash
-# 克隆项目
-git clone https://github.com/DuckCoding-dev/DuckCoding.git
-cd DuckCoding
-
-# 安装依赖
-npm install
-
-# 启动开发环境
-npm run tauri:dev
-```
-
-#### 开发命令
-
-```bash
-npm run dev          # 仅启动前端开发服务器
-npm run tauri:dev    # 启动完整桌面应用开发环境
-npm run tauri:build  # 构建生产版本
-npm run lint         # 代码检查
-npm run fmt          # 代码格式化
-```
-
-## 🙌 致谢贡献者
-
-感谢所有为 DuckCoding 做出贡献的朋友！  
-完整贡献者列表请查看 [GitHub Contributors](https://github.com/DuckCoding-dev/DuckCoding/graphs/contributors)。
-
-## 📄 许可证
-
-[GNU Affero General Public License v3.0](LICENSE)
-
-## 🔗 相关链接
-
-- [DuckCoding 官网](https://duckcoding.com)
-- [DuckCoding 控制台](https://duckcoding.com/console)
-- [Claude Code 文档](https://docs.claude.com/claude-code)
-- [OpenAI CodeX](https://openai.com/codex)
-- [Google Gemini](https://ai.google.dev)
-
-## ⚠️ 免责声明
-
-本工具仅用于简化 AI 编程工具的安装和配置流程，不提供 API 服务本身。使用第三方 API 服务时请遵守其服务条款。
-
----
-
-## ⭐ Star History
+English version: [README_EN.md](README_EN.md)
+
+## 目录
+
+- 项目概览
+- 核心功能
+- 功能预览
+- DuckCoding vs 手动配置
+- 快速开始
+- 使用指南（场景）
+- 功能详解
+- 设计与架构
+- 常见问题（FAQ）
+- 开发指南
+- 配置文件说明
+- 隐私与安全 / 许可证 / 相关链接 / Star History
+
+## 项目概览
+
+- 统一管理 Claude Code、CodeX、Gemini CLI，自动识别 npm/brew/官方安装方式
+- 多环境实例（Local/WSL/SSH），集中检测、安装、更新与状态查看
+- 多配置隔离（Profile），仅替换 API 字段，原生其他设置全部保留
+- 三工具独立透明代理，会话级配置、历史记录、自启动、防回环
+- 余额监控与供应商管理，模板 + 自定义提取器
+- 全量本地存储（`~/.duckcoding`）
+
+## 核心功能
+
+- 工具管理：自动检测/安装/更新；支持 Local/WSL/SSH；识别安装方式并校验版本
+- 配置管理（Profile）：多配置隔离；原生同步仅替换 API Key / Base URL
+- 透明代理：三工具独立端口（8787/8788/8789）；会话级配置；自启动；回环检测
+- 余额监控：多供应商；预设模板（NewAPI、OpenAI）+ 自定义 JS 提取器；可配置自动刷新
+- 供应商管理：统一 API 供应商配置，Dashboard 一键切换与校验
+- 高级设置：开机自启、单实例、日志级别/格式/文件输出
+
+## 功能预览
 
 <div align="center">
 
+![Dashboard](docs/screenshots/dashboard.png)
+![Tool Management](docs/screenshots/tool-management.png)
+![Profile Management](docs/screenshots/profile-management.png)
+![Transparent Proxy](docs/screenshots/transparent-proxy.png)
+
+</div>
+
+## DuckCoding vs 手动配置
+
+| 能力          | 手动配置                   | DuckCoding                       |
+| ------------- | -------------------------- | -------------------------------- |
+| 工具安装/更新 | 手动执行 npm/brew/官方命令 | 一键安装与版本检测               |
+| 配置切换      | 手改 JSON/TOML/ENV         | UI 一键切换，Profile 隔离        |
+| 多环境        | 逐一配置                   | 统一管理 Local/WSL/SSH           |
+| 代理          | 修改配置要重启             | UI 启停，三工具独立代理，防回环  |
+| 余额监控      | 自写脚本调用 API           | 预设模板 + 自定义提取器 + 可视化 |
+| 学习成本      | 需理解各工具配置格式       | 图形界面 + 版本化新手引导        |
+
+## 快速开始
+
+1. 下载  
+   前往 Releases 获取最新包：https://github.com/DuckCoding-dev/DuckCoding/releases
+
+- macOS Universal: `DuckCoding-macOS-Universal.dmg`
+- Windows x64: `DuckCoding-Windows-x64-setup.exe`（推荐）或 `.msi`
+- Linux x64: `.deb` / `.rpm` / `.AppImage`
+
+2. 平台支持
+
+- 支持：Windows 10/11 x64、macOS 10.15+（Intel/Apple Silicon）、Linux x64
+- 不支持：WSL GUI（请使用 Windows 原生安装包）
+
+3. 首次启动
+
+- 自动进入新手引导：欢迎 → 代理配置 → 工具介绍 → 完成；可在“设置 → 关于”重新开启
+
+## 使用指南（场景）
+
+- 场景一：Claude Code 快速代理  
+  透明代理中填写 API Key / Base URL → 启动代理 → 在“会话历史”确认请求流量。
+- 场景二：多账号切换（工作/个人）  
+  “Profile 管理”新建/导入配置 → 激活后仅替换 API 字段，主题/快捷键保留。
+- 场景三：多环境工具管理  
+  “工具管理”添加 Local/WSL/SSH 实例 → 统一查看版本与更新 → 支持一键安装/更新。
+- 场景四：多供应商余额监控  
+  “供应商管理”配置 API → Dashboard 选择供应商查看余额/趋势 → 支持自定义刷新间隔。
+- 场景五：自定义提取器  
+  在“余额监控”使用 JS 提取器解析任意响应 → 保存模板 → 自动刷新展示。
+
+## 功能详解
+
+### 工具管理
+
+- 自动检测已安装工具（含安装方式），支持手动刷新
+- 一键安装/更新；记录安装方式（npm/brew/官方），支持版本校验
+- 数据存储：`~/.duckcoding/tools.json`
+
+### 配置管理（Profile）
+
+- 双文件：`~/.duckcoding/profiles.json` + `~/.duckcoding/active.json`
+- 导入/导出；原生同步仅替换 API Key / Base URL，保留主题/快捷键等个性化设置
+- 支持 Claude Code（settings.json + config.json）、Codex（config.toml + auth.json）、Gemini CLI（.env + settings.json）
+
+### 透明代理
+
+- 默认端口：8787（Claude Code）/ 8788（CodeX）/ 8789（Gemini CLI）
+- 会话级配置临时覆盖全局配置；历史会话可复用；代理可自启动
+- 数据存储：`~/.duckcoding/proxy.json`；会话历史：`~/.duckcoding/sessions.db`
+
+### 余额监控
+
+- 预设模板（NewAPI、OpenAI）+ 自定义 JS 提取器
+- 可配置刷新间隔；可视化展示余额、用量、到期时间
+- 数据存储：`~/.duckcoding/balance.json`
+
+### 供应商管理
+
+- 管理多个 API 供应商，Dashboard 快速切换
+- 配置校验与状态展示
+- 数据存储：`~/.duckcoding/providers.json`
+
+### 高级设置
+
+- 开机自启、单实例开关
+
+## 设计与架构
+
+- 设计目标：KISS/DRY/YAGNI，最小化用户操作成本，聚焦“安装-配置-代理-监控”闭环
+- 前端：React 19 + TypeScript + Vite + Tailwind + shadcn/ui；页面组件化（Dashboard、ToolManagement、Profile、Proxy、Balance、Providers、Settings）
+- 后端：Tauri 2 + Rust；三层架构（Commands → Services → Utils）；Trait-based 扩展（ToolDetector、ToolConfigManager、HeadersProcessor）
+- 数据管理：统一 DataManager 读写 JSON/TOML/ENV/SQLite，自动原子写入与校验和缓存
+- 配置隔离：Profile v2 双文件架构（profiles.json + active.json），只替换 API 字段，保留原生个性化配置
+- 质量保障：`npm run check` 统一入口（ESLint + Clippy + Prettier + fmt），CI 四平台矩阵
+
+## 常见问题（FAQ）
+
+### 安装
+
+- Windows 提示“无法验证发布者”？当前未签名，点击“更多信息”→“仍要运行”。
+- macOS 显示“来自身份不明的开发者”？右键打开或在“系统设置 → 隐私与安全”中允许。
+- Linux 无执行权限？先 `chmod +x DuckCoding-Linux-x64.AppImage`，再运行。
+- WSL 可以用吗？不行，WSL 无法运行 GUI，请使用 Windows 原生安装包。
+
+### 配置
+
+- 激活 Profile 会改变主题/快捷键吗？不会，只覆盖 API Key 与 Base URL。
+- 如何备份配置？使用“配置管理 → 导出”或直接备份 `~/.duckcoding/`。
+- 配置路径？见“配置文件说明”章节。
+
+### 代理
+
+- 端口被占用？在“透明代理 → 代理设置”修改端口。
+- 如何验证代理生效？执行 AI 工具后在“会话历史”查看是否有新记录。
+
+### 更新
+
+- 更新 DuckCoding？“设置 → 更新”检查并安装。
+- 更新 AI 工具？在“工具管理”点击对应卡片的“更新”按钮。
+- 数据会丢失吗？不会，数据存储在 `~/.duckcoding/`。
+
+### 其他
+
+- 是否收集用户数据？不收集，全部本地存储，开源可审计。
+- API Key 为什么打码？为安全起见 UI 只展示脱敏内容，完整 Key 在配置文件中可查。
+- 遇到问题如何反馈？https://github.com/DuckCoding-dev/DuckCoding/issues
+
+## 开发指南
+
+### 环境要求
+
+- Node.js 20.19+
+- Rust 1.70+
+- 系统依赖：
+  - macOS: Xcode Command Line Tools
+  - Windows: Microsoft C++ Build Tools (MSVC)
+  - Linux: `build-essential`、`libwebkit2gtk-4.1-dev`、`libjavascriptcoregtk-4.1-dev`、`libssl-dev`、`patchelf`
+
+### 快速开始
+
+```bash
+git clone https://github.com/DuckCoding-dev/DuckCoding.git
+cd DuckCoding
+npm install
+npm run tauri dev
+```
+
+### 核心命令
+
+- `npm run check` / `npm run check:fix`（ESLint + Clippy + Prettier + fmt）
+- `npm run tauri dev` / `npm run tauri build`
+- `npm run test:rs` / `npm run coverage:rs`
+
+### 技术架构
+
+- 三层：Commands → Services → Utils
+- Trait-based：ToolDetector / ToolConfigManager / HeadersProcessor
+- 统一数据管理：DataManager（JSON/TOML/ENV/SQLite）
+
+### 项目结构
+
+- 前端：`src/`（React + shadcn/ui）
+- 后端：`src-tauri/src/`（commands / services / utils / models / data / setup）
+- 文档：`docs/`（含 `screenshots/`）
+
+### 贡献指南
+
+- 提交规范：Conventional Commits，描述使用简体中文
+- PR 需包含：动机、主要改动、测试情况、风险评估
+- 合并前必须通过：`npm run check`、`cargo test --locked`
+
+## 配置文件说明（`~` 为用户主目录）
+
+- DuckCoding：`~/.duckcoding/config.json`、`profiles.json`、`active.json`、`tools.json`、`proxy.json`、`balance.json`、`providers.json`、`sessions.db`、`logs/`
+- Claude Code：`~/.claude/settings.json`、`~/.claude/config.json`
+- CodeX：`~/.codex/config.toml`、`~/.codex/auth.json`
+- Gemini CLI：`~/.gemini/.env`、`~/.gemini/settings.json`
+
+## 隐私与安全
+
+- 不收集/不上报用户数据，配置文件权限 0600
+- 完全开源可审计，AGPL-3.0 保障用户权益
+
+## 许可证
+
+[GNU Affero General Public License v3.0](LICENSE)
+
+## 相关链接
+
+- 官网：https://duckcoding.com
+- 控制台：https://duckcoding.com/console
+- 问题反馈：https://github.com/DuckCoding-dev/DuckCoding/issues
+- 贡献指南：CLAUDE.md
+
+## Star History
+
+<div align="center">
 <a href="https://star-history.com/#DuckCoding-dev/DuckCoding&Date">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=DuckCoding-dev/DuckCoding&type=Date&theme=dark" />
@@ -260,15 +259,9 @@ npm run fmt          # 代码格式化
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=DuckCoding-dev/DuckCoding&type=Date" />
  </picture>
 </a>
-
 </div>
 
----
-
 <div align="center">
-
-Made with ❤️ by DuckCoding
-
+Made with ?? by DuckCoding  
 [官网](https://duckcoding.com) · [反馈问题](https://github.com/DuckCoding-dev/DuckCoding/issues)
-
 </div>

@@ -10,10 +10,18 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, CheckCircle2, XCircle, User, Info } from 'lucide-react';
-import type { Provider } from '@/lib/tauri-commands';
-import { validateProviderConfig } from '@/lib/tauri-commands';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Loader2, CheckCircle2, XCircle, User, Info, AlertCircle } from 'lucide-react';
+import type { Provider, ApiInfo } from '@/lib/tauri-commands';
+import { validateProviderConfig, fetchProviderApiAddresses } from '@/lib/tauri-commands';
 import { openExternalLink } from '@/utils/formatting.ts';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProviderFormDialogProps {
   open: boolean;
@@ -30,10 +38,12 @@ export function ProviderFormDialog({
   onSubmit,
   isEditing,
 }: ProviderFormDialogProps) {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     id: '',
     name: '',
     website_url: '',
+    api_address: '',
     user_id: '',
     access_token: '',
     is_default: false,
@@ -45,6 +55,8 @@ export function ProviderFormDialog({
     username?: string;
     error?: string;
   } | null>(null);
+  const [apiAddresses, setApiAddresses] = useState<ApiInfo[]>([]);
+  const [loadingApiAddresses, setLoadingApiAddresses] = useState(false);
 
   useEffect(() => {
     if (provider) {
@@ -52,6 +64,7 @@ export function ProviderFormDialog({
         id: provider.id,
         name: provider.name,
         website_url: provider.website_url,
+        api_address: provider.api_address || '',
         user_id: provider.user_id,
         access_token: provider.access_token,
         is_default: provider.is_default,
@@ -61,16 +74,64 @@ export function ProviderFormDialog({
         id: '',
         name: '',
         website_url: 'https://duckcoding.com',
+        api_address: '',
         user_id: '',
         access_token: '',
         is_default: false,
       });
     }
+    // 重置验证状态
     setValidationResult(null);
   }, [provider, open]);
 
+  // 监听关键字段变化，清除验证结果
+  useEffect(() => {
+    if (formData.website_url || formData.user_id || formData.access_token) {
+      setValidationResult(null);
+    }
+  }, [formData.website_url, formData.user_id, formData.access_token]);
+
+  // 监听 website_url 变化或对话框打开，自动获取 API 地址列表
+  useEffect(() => {
+    const loadApiAddresses = async () => {
+      // 对话框未打开时不加载
+      if (!open) {
+        return;
+      }
+
+      if (!formData.website_url || !formData.website_url.startsWith('http')) {
+        setApiAddresses([]);
+        return;
+      }
+
+      setLoadingApiAddresses(true);
+      try {
+        const addresses = await fetchProviderApiAddresses(formData.website_url);
+        setApiAddresses(addresses);
+      } catch (error) {
+        console.error('获取 API 地址列表失败:', error);
+        setApiAddresses([]);
+      } finally {
+        setLoadingApiAddresses(false);
+      }
+    };
+
+    loadApiAddresses();
+  }, [formData.website_url, open]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 强制验证配置
+    if (!validationResult || !validationResult.success) {
+      toast({
+        title: '验证失败',
+        description: '请先验证配置信息，确保配置正确后再保存',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const now = Math.floor(Date.now() / 1000);
@@ -82,6 +143,7 @@ export function ProviderFormDialog({
       const providerData: Provider = {
         ...formData,
         id: providerId,
+        api_address: formData.api_address || undefined,
         username: provider?.username || validationResult?.username,
         created_at: provider?.created_at || now,
         updated_at: now,
@@ -120,7 +182,7 @@ export function ProviderFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? '编辑供应商' : '添加供应商'}</DialogTitle>
           <DialogDescription>
@@ -128,8 +190,8 @@ export function ProviderFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="flex flex-col overflow-hidden">
+          <div className="space-y-4 py-4 overflow-y-auto pr-2">
             {/* 供应商名称 */}
             <div className="space-y-2">
               <Label htmlFor="name">供应商名称</Label>
@@ -153,6 +215,63 @@ export function ProviderFormDialog({
                 placeholder="https://duckcoding.com"
                 required
               />
+            </div>
+
+            {/* API 地址（可选） */}
+            <div className="space-y-2">
+              <Label htmlFor="api_address">
+                API 地址（可选）
+                {loadingApiAddresses && (
+                  <Loader2 className="ml-2 inline h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </Label>
+              {apiAddresses.length > 0 ? (
+                <>
+                  <Select
+                    value={formData.api_address || 'custom'}
+                    onValueChange={(value) => {
+                      if (value === 'custom') {
+                        setFormData({ ...formData, api_address: '' });
+                      } else {
+                        setFormData({ ...formData, api_address: value });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择 API 地址或自定义" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">自定义输入</SelectItem>
+                      {apiAddresses.map((api) => (
+                        <SelectItem key={api.url} value={api.url}>
+                          {api.description} - {api.url}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(!formData.api_address ||
+                    !apiAddresses.find((api) => api.url === formData.api_address)) && (
+                    <Input
+                      id="api_address"
+                      type="url"
+                      value={formData.api_address}
+                      onChange={(e) => setFormData({ ...formData, api_address: e.target.value })}
+                      placeholder="https://api.example.com"
+                    />
+                  )}
+                </>
+              ) : (
+                <Input
+                  id="api_address"
+                  type="url"
+                  value={formData.api_address}
+                  onChange={(e) => setFormData({ ...formData, api_address: e.target.value })}
+                  placeholder="https://api.example.com"
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                留空则使用官网地址作为 API 地址。导入令牌时将优先使用此地址。
+              </p>
             </div>
 
             {/* 用户 ID */}
@@ -204,6 +323,19 @@ export function ProviderFormDialog({
               </div>
             </div>
 
+            {/* 强制验证提示 */}
+            {!validationResult && (
+              <div className="flex items-start gap-2 p-3 rounded-lg text-sm bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium">请先验证配置</p>
+                  <p className="mt-1 text-xs opacity-90">
+                    保存前必须验证配置信息，点击下方「验证配置」按钮进行验证
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* 验证结果 */}
             {validationResult && (
               <div
@@ -242,7 +374,7 @@ export function ProviderFormDialog({
             )}
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 flex-shrink-0 pt-4 border-t mt-4">
             <Button type="button" variant="outline" onClick={handleValidate} disabled={validating}>
               {validating ? (
                 <>
@@ -253,7 +385,7 @@ export function ProviderFormDialog({
                 '验证配置'
               )}
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !validationResult?.success}>
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

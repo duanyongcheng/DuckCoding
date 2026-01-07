@@ -9,11 +9,13 @@
 // - migration_manager: 统一迁移管理（新）
 // - balance: 余额监控配置管理
 // - provider_manager: 供应商配置管理
+// - new_api: NEW API 客户端服务
 
 pub mod balance;
 pub mod config;
 pub mod dashboard_manager; // 仪表板状态管理
 pub mod migration_manager;
+pub mod new_api; // NEW API 客户端
 pub mod profile_manager; // Profile管理（v2.1）
 pub mod provider_manager; // 供应商配置管理
 pub mod proxy;
@@ -27,9 +29,10 @@ pub use balance::*;
 pub use config::types::*; // 仅导出类型
 pub use dashboard_manager::DashboardManager;
 pub use migration_manager::{create_migration_manager, MigrationManager};
+pub use new_api::NewApiClient;
 pub use profile_manager::{
     ActiveStore, ClaudeProfile, CodexProfile, GeminiProfile, ProfileDescriptor, ProfileManager,
-    ProfilesStore,
+    ProfileSource, ProfilesStore,
 }; // Profile管理（v2.0）
 pub use provider_manager::ProviderManager;
 pub use proxy::*;

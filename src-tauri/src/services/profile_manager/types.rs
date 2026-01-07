@@ -6,6 +6,32 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// ==================== Profile 来源标记 ====================
+
+/// Profile 来源类型
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(tag = "type")]
+pub enum ProfileSource {
+    /// 用户自定义创建
+    #[default]
+    Custom,
+    /// 从供应商远程令牌导入
+    ImportedFromProvider {
+        /// 供应商 ID
+        provider_id: String,
+        /// 供应商名称
+        provider_name: String,
+        /// 远程令牌 ID
+        remote_token_id: i64,
+        /// 远程令牌名称
+        remote_token_name: String,
+        /// 所属分组
+        group: String,
+        /// 导入时间（Unix 时间戳）
+        imported_at: i64,
+    },
+}
+
 // ==================== 具体 Profile 类型 ====================
 
 /// Claude Code Profile
@@ -13,6 +39,8 @@ use std::collections::HashMap;
 pub struct ClaudeProfile {
     pub api_key: String,
     pub base_url: String,
+    #[serde(default)]
+    pub source: ProfileSource,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -28,6 +56,8 @@ pub struct CodexProfile {
     pub base_url: String,
     #[serde(default = "default_codex_wire_api")]
     pub wire_api: String, // "responses" 或 "chat"
+    #[serde(default)]
+    pub source: ProfileSource,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -47,6 +77,8 @@ pub struct GeminiProfile {
     pub base_url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    #[serde(default)]
+    pub source: ProfileSource,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -224,6 +256,7 @@ pub struct ProfileDescriptor {
     pub name: String,
     pub api_key_preview: String,
     pub base_url: String,
+    pub source: ProfileSource,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub is_active: bool,
@@ -253,6 +286,7 @@ impl ProfileDescriptor {
             name: name.to_string(),
             api_key_preview: mask_api_key(&profile.api_key),
             base_url: profile.base_url.clone(),
+            source: profile.source.clone(),
             created_at: profile.created_at,
             updated_at: profile.updated_at,
             is_active,
@@ -279,6 +313,7 @@ impl ProfileDescriptor {
             name: name.to_string(),
             api_key_preview: mask_api_key(&profile.api_key),
             base_url: profile.base_url.clone(),
+            source: profile.source.clone(),
             created_at: profile.created_at,
             updated_at: profile.updated_at,
             is_active,
@@ -305,6 +340,7 @@ impl ProfileDescriptor {
             name: name.to_string(),
             api_key_preview: mask_api_key(&profile.api_key),
             base_url: profile.base_url.clone(),
+            source: profile.source.clone(),
             created_at: profile.created_at,
             updated_at: profile.updated_at,
             is_active,
@@ -324,4 +360,17 @@ fn mask_api_key(key: &str) -> String {
     let prefix = &key[..4];
     let suffix = &key[key.len() - 4..];
     format!("{}...{}", prefix, suffix)
+}
+
+// ==================== 令牌导入状态 ====================
+
+/// 令牌导入状态（用于检测令牌是否已导入到某个工具）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenImportStatus {
+    /// 工具 ID (claude-code, codex, gemini-cli)
+    pub tool_id: String,
+    /// 是否已导入
+    pub is_imported: bool,
+    /// 已导入的 Profile 名称（如果已导入）
+    pub imported_profile_name: Option<String>,
 }
