@@ -15,9 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Sparkles, Copy, Check, Info } from 'lucide-react';
+import { Sparkles, Copy, Check, Info, Loader2, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { ToolProxyConfig } from '@/lib/tauri-commands';
+import type { ToolProxyConfig, AmpUserInfo } from '@/lib/tauri-commands';
+import { validateAndSaveAmpToken } from '@/lib/tauri-commands';
 import type { ToolId } from '../types/proxy-history';
 
 // 工具默认端口映射
@@ -84,6 +85,11 @@ export function ProxySettingsDialog({
   );
   const [autoStart, setAutoStart] = useState(config?.auto_start ?? false);
 
+  // AMP Access Token 状态（仅 amp-code）
+  const [ampAccessToken, setAmpAccessToken] = useState(config?.real_api_key ?? '');
+  const [ampUserInfo, setAmpUserInfo] = useState<AmpUserInfo | null>(null);
+  const [validatingToken, setValidatingToken] = useState(false);
+
   // 打开弹窗时重置表单状态
   useEffect(() => {
     if (open && config) {
@@ -93,8 +99,22 @@ export function ProxySettingsDialog({
       setAllowPublic(config.allow_public);
       setSessionEndpointEnabled(config.session_endpoint_config_enabled ?? false);
       setAutoStart(config.auto_start ?? false);
+      // AMP Access Token
+      setAmpAccessToken(config.real_api_key ?? '');
+      setAmpUserInfo(null);
+
+      // 如果有保存的 token，自动获取用户信息
+      if (toolId === 'amp-code' && config.real_api_key) {
+        import('@/lib/tauri-commands').then(({ getSavedAmpUserInfo }) => {
+          getSavedAmpUserInfo()
+            .then((info) => {
+              if (info) setAmpUserInfo(info);
+            })
+            .catch(console.error);
+        });
+      }
     }
-  }, [open, config]);
+  }, [open, config, toolId]);
 
   // 生成随机 API Key
   const handleGenerateApiKey = () => {
@@ -115,6 +135,36 @@ export function ProxySettingsDialog({
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error('Failed to copy:', error);
+    }
+  };
+
+  // 验证 AMP Access Token
+  const handleValidateAmpToken = async () => {
+    if (!ampAccessToken.trim()) {
+      toast({
+        title: '请输入 Access Token',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setValidatingToken(true);
+    try {
+      const userInfo = await validateAndSaveAmpToken(ampAccessToken.trim());
+      setAmpUserInfo(userInfo);
+      toast({
+        title: '验证成功',
+        description: `已登录为 ${userInfo.username || userInfo.email || userInfo.id}`,
+      });
+    } catch (error) {
+      toast({
+        title: '验证失败',
+        description: String(error),
+        variant: 'destructive',
+      });
+      setAmpUserInfo(null);
+    } finally {
+      setValidatingToken(false);
     }
   };
 
@@ -141,14 +191,20 @@ export function ProxySettingsDialog({
 
     setSaving(true);
     try {
-      await onSave({
+      const updates: Partial<ToolProxyConfig> = {
         enabled,
         port,
         local_api_key: localApiKey || null,
         allow_public: allowPublic,
         session_endpoint_config_enabled: sessionEndpointEnabled,
         auto_start: autoStart,
-      });
+      };
+      // AMP Access Token 需要一起保存
+      if (toolId === 'amp-code' && ampAccessToken) {
+        updates.real_api_key = ampAccessToken;
+        updates.real_base_url = 'https://ampcode.com';
+      }
+      await onSave(updates);
       // 触发配置更新事件
       window.dispatchEvent(new Event('proxy-config-updated'));
       toast({
@@ -255,6 +311,52 @@ export function ProxySettingsDialog({
                 <p className="text-xs text-muted-foreground">用于验证请求的本地 API 密钥</p>
               </div>
 
+              {/* AMP Access Token（仅 amp-code） */}
+              {toolId === 'amp-code' && (
+                <div className="space-y-2 pt-2 border-t">
+                  <Label htmlFor="amp-token">AMP Access Token</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="amp-token"
+                      type="password"
+                      placeholder="输入你的 AMP Access Token"
+                      value={ampAccessToken}
+                      onChange={(e) => setAmpAccessToken(e.target.value)}
+                      disabled={isRunning || validatingToken}
+                      className="flex-1 font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleValidateAmpToken}
+                      disabled={isRunning || validatingToken || !ampAccessToken.trim()}
+                    >
+                      {validatingToken ? <Loader2 className="h-4 w-4 animate-spin" /> : '验证'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    用于登录 AMP 并获取用户信息，可在{' '}
+                    <a
+                      href="https://ampcode.com/settings"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    >
+                      ampcode.com/settings
+                    </a>{' '}
+                    获取
+                  </p>
+                  {ampUserInfo && (
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                      <User className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">
+                        已登录: {ampUserInfo.username || ampUserInfo.email || ampUserInfo.id}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 允许公网访问 */}
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -268,20 +370,22 @@ export function ProxySettingsDialog({
                 />
               </div>
 
-              {/* 会话级端点配置 */}
-              <div className="flex items-center justify-between pt-2 border-t">
-                <div className="space-y-0.5">
-                  <Label>会话级端点配置</Label>
-                  <p className="text-xs text-muted-foreground">
-                    允许为每个代理会话单独配置 API 端点
-                  </p>
+              {/* 会话级端点配置（仅非 AMP） */}
+              {toolId !== 'amp-code' && (
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="space-y-0.5">
+                    <Label>会话级端点配置</Label>
+                    <p className="text-xs text-muted-foreground">
+                      允许为每个代理会话单独配置 API 端点
+                    </p>
+                  </div>
+                  <Switch
+                    checked={sessionEndpointEnabled}
+                    onCheckedChange={setSessionEndpointEnabled}
+                    disabled={isRunning}
+                  />
                 </div>
-                <Switch
-                  checked={sessionEndpointEnabled}
-                  onCheckedChange={setSessionEndpointEnabled}
-                  disabled={isRunning}
-                />
-              </div>
+              )}
 
               {/* 应用启动时自动运行 */}
               <div className="flex items-center justify-between">

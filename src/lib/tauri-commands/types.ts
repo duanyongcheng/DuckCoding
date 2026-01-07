@@ -317,3 +317,11 @@ export interface BalanceConfigBackend {
 
 // 前端 BalanceConfig 格式（camelCase）- 从 BalancePage 导入
 export type { BalanceConfig } from '@/pages/BalancePage/types';
+
+// AMP 用户信息
+export interface AmpUserInfo {
+  id: string;
+  email: string | null;
+  name: string | null;
+  username: string | null;
+}

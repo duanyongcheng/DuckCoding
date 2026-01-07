@@ -1,12 +1,11 @@
 // Amp Code 请求处理器
 //
-// Amp CLI 的请求本质上是 Anthropic/OpenAI/Gemini 兼容的 API 调用，
-// 此处理器根据请求路径/headers 判断请求类型，然后委托给对应的 processor 处理。
-//
-// 核心逻辑：
-// 1. 检测请求类型（Claude/Codex/Gemini）
-// 2. 从 ProfileManager::resolve_amp_selection() 获取用户选择的 profile
-// 3. 委托给对应的 processor 完成实际的请求转换
+// 路由逻辑：
+// 1. /api/provider/anthropic/* → Claude Profile（提取 /v1/messages）
+// 2. /api/provider/openai/* → Codex Profile（提取 /v1/responses 或 /v1/chat/completions）
+// 3. /api/provider/google/* → Gemini Profile（提取 /v1beta/...）
+// 4. 其他 /api/* → ampcode.com（使用 AMP Access Token）
+// 5. 直接 LLM 路径 → 按路径/headers/model 判断
 
 use super::{
     ClaudeHeadersProcessor, CodexHeadersProcessor, GeminiHeadersProcessor, ProcessedRequest,
@@ -17,88 +16,188 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use hyper::HeaderMap as HyperHeaderMap;
 
-/// Amp Code 请求处理器
-///
-/// 作为路由层，根据请求特征判断应该使用哪个上游 API，
-/// 然后委托给对应的 processor 完成实际转换。
-///
-/// # 路由规则（按优先级）
-/// 1. `/v1/messages` → Claude (Anthropic API)
-/// 2. `/v1/chat/completions`, `/v1/responses`, `/v1/completions` → Codex (OpenAI API)
-/// 3. `/v1beta/`, `:generateContent`, `:streamGenerateContent` → Gemini API
-/// 4. 兜底：检查 headers 中的 `anthropic-version` 或请求体中的 model 字段
 #[derive(Debug)]
 pub struct AmpHeadersProcessor;
 
-/// 检测请求类型
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum DetectedApiType {
+enum ApiType {
+    AmpInternal,
     Claude,
     Codex,
     Gemini,
 }
 
 impl AmpHeadersProcessor {
-    /// 根据请求路径和 headers 检测 API 类型
-    fn detect_api_type(path: &str, headers: &HyperHeaderMap, body: &[u8]) -> DetectedApiType {
-        // 1. 优先按路径判断（最稳定）
+    fn detect_api_type(path: &str, headers: &HyperHeaderMap, body: &[u8]) -> ApiType {
         let path_lower = path.to_lowercase();
 
-        // Anthropic Claude API
-        if path_lower.contains("/messages") && !path_lower.contains("/chat/completions") {
-            return DetectedApiType::Claude;
+        // 1. /api/provider/{provider}/* → LLM 端点
+        if path_lower.starts_with("/api/provider/anthropic") {
+            return ApiType::Claude;
+        }
+        if path_lower.starts_with("/api/provider/openai") {
+            return ApiType::Codex;
+        }
+        if path_lower.starts_with("/api/provider/google") {
+            return ApiType::Gemini;
         }
 
-        // OpenAI API
+        // 2. 其他 /api/* → ampcode.com
+        if path_lower.starts_with("/api/") {
+            return ApiType::AmpInternal;
+        }
+
+        // 3. 直接 LLM 路径
+        if path_lower.contains("/messages") && !path_lower.contains("/chat/completions") {
+            return ApiType::Claude;
+        }
         if path_lower.contains("/chat/completions")
             || path_lower.contains("/responses")
             || path_lower.ends_with("/completions")
         {
-            return DetectedApiType::Codex;
+            return ApiType::Codex;
         }
-
-        // Gemini API
         if path_lower.contains("/v1beta")
             || path_lower.contains(":generatecontent")
             || path_lower.contains(":streamgeneratecontent")
         {
-            return DetectedApiType::Gemini;
+            return ApiType::Gemini;
         }
 
-        // 2. 其次按 headers 判断
+        // 4. 按 headers
         if headers.contains_key("anthropic-version") {
-            return DetectedApiType::Claude;
+            return ApiType::Claude;
         }
 
-        // 3. 最后按 body 判断（解析 JSON 中的 model 字段）
+        // 5. 按 body.model
+        if let Some(api_type) = Self::detect_by_model(body) {
+            return api_type;
+        }
+
+        ApiType::Claude
+    }
+
+    fn detect_by_model(body: &[u8]) -> Option<ApiType> {
+        if body.is_empty() {
+            return None;
+        }
+        let json: serde_json::Value = serde_json::from_slice(body).ok()?;
+        let model = json.get("model")?.as_str()?.to_lowercase();
+
+        if model.contains("gemini") {
+            Some(ApiType::Gemini)
+        } else if model.contains("claude") {
+            Some(ApiType::Claude)
+        } else if model.contains("gpt") {
+            Some(ApiType::Codex)
+        } else {
+            None
+        }
+    }
+
+    fn extract_model_name(path: &str, body: &[u8]) -> String {
+        // 1. 从路径提取：/v1beta/models/{model}:xxx
+        if let Some(start) = path.find("/models/") {
+            let after = &path[start + 8..];
+            if let Some(end) = after.find(':') {
+                return after[..end].to_string();
+            }
+            if let Some(end) = after.find('/') {
+                return after[..end].to_string();
+            }
+            return after.to_string();
+        }
+
+        // 2. 从请求体提取
         if !body.is_empty() {
             if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
                 if let Some(model) = json.get("model").and_then(|m| m.as_str()) {
-                    let model_lower = model.to_lowercase();
-
-                    // Gemini models
-                    if model_lower.contains("gemini") {
-                        return DetectedApiType::Gemini;
-                    }
-
-                    // Claude models
-                    if model_lower.contains("claude") {
-                        return DetectedApiType::Claude;
-                    }
-
-                    // OpenAI models (gpt, o1, etc.)
-                    if model_lower.contains("gpt")
-                        || model_lower.starts_with("o1")
-                        || model_lower.starts_with("o3")
-                    {
-                        return DetectedApiType::Codex;
-                    }
+                    return model.to_string();
                 }
             }
         }
 
-        // 默认使用 Claude（因为 Amp 主要面向 Claude API）
-        DetectedApiType::Claude
+        "gemini-2.0-flash".to_string()
+    }
+
+    /// 提取 LLM API 路径：/api/provider/xxx/v1/... → /v1/...
+    /// Gemini 特殊处理：/v1beta1/publishers/google/models/xxx → /v1beta/models/xxx
+    fn extract_llm_path(path: &str) -> String {
+        // Gemini 路径转换：v1beta1/publishers/google/models/xxx → v1beta/models/xxx
+        if let Some(pos) = path.find("/v1beta1/publishers/google/models/") {
+            let model_part = &path[pos + "/v1beta1/publishers/google/models/".len()..];
+            return format!("/v1beta/models/{}", model_part);
+        }
+
+        // 标准路径提取
+        if let Some(pos) = path.find("/v1beta") {
+            return path[pos..].to_string();
+        }
+        if let Some(pos) = path.find("/v1") {
+            return path[pos..].to_string();
+        }
+
+        path.to_string()
+    }
+
+    fn get_user_agent(api_type: ApiType, path: &str, body: &[u8]) -> String {
+        match api_type {
+            ApiType::Claude => "claude-cli/2.0.72 (external, cli)".to_string(),
+            ApiType::Codex => {
+                "codex_cli_rs/0.77.0 (Mac OS 15.7.2; arm64) Apple_Terminal/455.1".to_string()
+            }
+            ApiType::Gemini => {
+                let model = Self::extract_model_name(path, body);
+                format!("GeminiCLI/0.22.5/{} (darwin; arm64)", model)
+            }
+            ApiType::AmpInternal => unreachable!(),
+        }
+    }
+
+    async fn forward_to_amp(
+        path: &str,
+        query: Option<&str>,
+        headers: &HyperHeaderMap,
+        body: &[u8],
+    ) -> Result<ProcessedRequest> {
+        let proxy_mgr = crate::services::proxy_config_manager::ProxyConfigManager::new()
+            .map_err(|e| anyhow!("ProxyConfigManager 初始化失败: {}", e))?;
+
+        let config = proxy_mgr
+            .get_config("amp-code")
+            .map_err(|e| anyhow!("读取配置失败: {}", e))?
+            .ok_or_else(|| anyhow!("Amp Code 代理未配置"))?;
+
+        let token = config
+            .real_api_key
+            .ok_or_else(|| anyhow!("Amp Code Access Token 未配置"))?;
+
+        let base_url = config
+            .real_base_url
+            .unwrap_or_else(|| "https://ampcode.com".to_string());
+
+        let target_url = match query {
+            Some(q) => format!("{}{}?{}", base_url, path, q),
+            None => format!("{}{}", base_url, path),
+        };
+
+        tracing::info!("Amp Code → ampcode.com: {}", target_url);
+
+        let mut new_headers = headers.clone();
+        new_headers.remove(hyper::header::AUTHORIZATION);
+        let x_api_key = hyper::header::HeaderName::from_static("x-api-key");
+        new_headers.remove(&x_api_key);
+        new_headers.insert(
+            hyper::header::AUTHORIZATION,
+            format!("Bearer {}", token).parse().unwrap(),
+        );
+        new_headers.insert(x_api_key, token.parse().unwrap());
+
+        Ok(ProcessedRequest {
+            target_url,
+            headers: new_headers,
+            body: body.to_vec().into(),
+        })
     }
 }
 
@@ -110,84 +209,110 @@ impl RequestProcessor for AmpHeadersProcessor {
 
     async fn process_outgoing_request(
         &self,
-        _base_url: &str, // 忽略传入的 base_url，使用 resolve_amp_selection 获取
-        _api_key: &str,  // 忽略传入的 api_key，使用 resolve_amp_selection 获取
+        _base_url: &str,
+        _api_key: &str,
         path: &str,
         query: Option<&str>,
         original_headers: &HyperHeaderMap,
         body: &[u8],
     ) -> Result<ProcessedRequest> {
-        // 1. 检测请求类型
         let api_type = Self::detect_api_type(path, original_headers, body);
-        tracing::debug!("Amp Code 请求路由: path={}, api_type={:?}", path, api_type);
+        tracing::debug!("Amp Code 路由: path={}, type={:?}", path, api_type);
 
-        // 2. 获取 ProfileManager 并解析 AMP 选择
-        let profile_manager =
-            ProfileManager::new().map_err(|e| anyhow!("无法初始化 ProfileManager: {}", e))?;
+        if api_type == ApiType::AmpInternal {
+            return Self::forward_to_amp(path, query, original_headers, body).await;
+        }
 
-        let (claude_profile, codex_profile, gemini_profile) = profile_manager
+        // LLM 请求 → 用户配置的 Profile
+        let profile_mgr =
+            ProfileManager::new().map_err(|e| anyhow!("ProfileManager 初始化失败: {}", e))?;
+
+        let (claude, codex, gemini) = profile_mgr
             .resolve_amp_selection()
-            .map_err(|e| anyhow!("无法解析 AMP Code Profile 选择: {}", e))?;
+            .map_err(|e| anyhow!("Profile 解析失败: {}", e))?;
 
-        // 3. 根据检测到的 API 类型选择对应的 profile 和 processor
+        let llm_path = Self::extract_llm_path(path);
+
         match api_type {
-            DetectedApiType::Claude => {
-                let profile = claude_profile.ok_or_else(|| {
-                    anyhow!("AMP Code 未配置 Claude Profile，请先在 Profile 管理页面选择")
-                })?;
-
-                tracing::info!("Amp Code 请求转发到 Claude: base_url={}", profile.base_url);
-
-                // 委托给 Claude processor
-                ClaudeHeadersProcessor
+            ApiType::Claude => {
+                let p = claude.ok_or_else(|| anyhow!("未配置 Claude Profile"))?;
+                tracing::info!("Amp Code → Claude: {}{}", p.base_url, llm_path);
+                let mut result = ClaudeHeadersProcessor
                     .process_outgoing_request(
-                        &profile.base_url,
-                        &profile.api_key,
-                        path,
+                        &p.base_url,
+                        &p.api_key,
+                        &llm_path,
                         query,
                         original_headers,
                         body,
                     )
-                    .await
+                    .await?;
+
+                let amp_headers: Vec<_> = result
+                    .headers
+                    .keys()
+                    .filter(|k| k.as_str().starts_with("x-amp-"))
+                    .cloned()
+                    .collect();
+                for key in amp_headers {
+                    result.headers.remove(&key);
+                }
+
+                result.headers.insert(
+                    "user-agent",
+                    Self::get_user_agent(api_type, path, body).parse().unwrap(),
+                );
+                result.headers.insert("x-app", "cli".parse().unwrap());
+
+                if !result.target_url.contains("beta=true") {
+                    if result.target_url.contains('?') {
+                        result.target_url.push_str("&beta=true");
+                    } else {
+                        result.target_url.push_str("?beta=true");
+                    }
+                }
+
+                Ok(result)
             }
-            DetectedApiType::Codex => {
-                let profile = codex_profile.ok_or_else(|| {
-                    anyhow!("AMP Code 未配置 Codex Profile，请先在 Profile 管理页面选择")
-                })?;
-
-                tracing::info!("Amp Code 请求转发到 Codex: base_url={}", profile.base_url);
-
-                // 委托给 Codex processor
-                CodexHeadersProcessor
+            ApiType::Codex => {
+                let p = codex.ok_or_else(|| anyhow!("未配置 Codex Profile"))?;
+                tracing::info!("Amp Code → Codex: {}{}", p.base_url, llm_path);
+                let mut result = CodexHeadersProcessor
                     .process_outgoing_request(
-                        &profile.base_url,
-                        &profile.api_key,
-                        path,
+                        &p.base_url,
+                        &p.api_key,
+                        &llm_path,
                         query,
                         original_headers,
                         body,
                     )
-                    .await
+                    .await?;
+                result.headers.insert(
+                    "user-agent",
+                    Self::get_user_agent(api_type, path, body).parse().unwrap(),
+                );
+                Ok(result)
             }
-            DetectedApiType::Gemini => {
-                let profile = gemini_profile.ok_or_else(|| {
-                    anyhow!("AMP Code 未配置 Gemini Profile，请先在 Profile 管理页面选择")
-                })?;
-
-                tracing::info!("Amp Code 请求转发到 Gemini: base_url={}", profile.base_url);
-
-                // 委托给 Gemini processor
-                GeminiHeadersProcessor
+            ApiType::Gemini => {
+                let p = gemini.ok_or_else(|| anyhow!("未配置 Gemini Profile"))?;
+                tracing::info!("Amp Code → Gemini: {}{}", p.base_url, llm_path);
+                let mut result = GeminiHeadersProcessor
                     .process_outgoing_request(
-                        &profile.base_url,
-                        &profile.api_key,
-                        path,
+                        &p.base_url,
+                        &p.api_key,
+                        &llm_path,
                         query,
                         original_headers,
                         body,
                     )
-                    .await
+                    .await?;
+                result.headers.insert(
+                    "user-agent",
+                    Self::get_user_agent(api_type, path, body).parse().unwrap(),
+                );
+                Ok(result)
             }
+            ApiType::AmpInternal => unreachable!(),
         }
     }
 }

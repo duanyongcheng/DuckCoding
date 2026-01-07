@@ -1,3 +1,4 @@
+pub mod amp_commands; // AMP 用户认证命令
 pub mod balance_commands;
 pub mod config_commands;
 pub mod dashboard_commands; // 仪表板状态管理命令
@@ -19,6 +20,7 @@ pub mod watcher_commands;
 pub mod window_commands;
 
 // 重新导出所有命令函数
+pub use amp_commands::*; // AMP 用户认证命令
 pub use balance_commands::*;
 pub use config_commands::*;
 pub use dashboard_commands::*; // 仪表板状态管理命令

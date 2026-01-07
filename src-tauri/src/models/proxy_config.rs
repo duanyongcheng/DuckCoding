@@ -25,6 +25,12 @@ pub struct ToolProxyConfig {
     /// 启动代理前激活的 Profile 名称（用于关闭时还原）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_active_profile: Option<String>,
+    /// Amp 原始 settings.json 完整内容（用于关闭时还原）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_amp_settings: Option<String>,
+    /// Amp 原始 secrets.json 完整内容（用于关闭时还原）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_amp_secrets: Option<String>,
 }
 
 impl ToolProxyConfig {
@@ -41,6 +47,8 @@ impl ToolProxyConfig {
             session_endpoint_config_enabled: false,
             auto_start: false,
             original_active_profile: None,
+            original_amp_settings: None,
+            original_amp_secrets: None,
         }
     }
 

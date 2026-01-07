@@ -316,6 +316,10 @@ fn main() {
         get_proxy_config,
         update_proxy_config,
         get_all_proxy_configs,
+        // AMP 用户认证命令
+        get_amp_user_info,
+        validate_and_save_amp_token,
+        get_saved_amp_user_info,
         // 会话管理命令
         get_session_list,
         delete_session,
@@ -394,6 +398,10 @@ fn main() {
         set_tool_instance_selection,
         get_selected_provider_id,
         set_selected_provider_id,
+        // AMP 用户认证命令
+        get_amp_user_info,
+        validate_and_save_amp_token,
+        get_saved_amp_user_info,
     ]);
 
     // 使用自定义事件循环处理 macOS Reopen 事件

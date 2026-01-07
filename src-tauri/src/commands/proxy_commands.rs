@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::commands::profile_commands::ProfileManagerState;
+use ::duckcoding::services::amp_native_config;
 use ::duckcoding::services::proxy::ProxyManager;
 use ::duckcoding::services::proxy_config_manager::ProxyConfigManager;
 use ::duckcoding::utils::config::read_global_config;
@@ -224,10 +225,35 @@ async fn try_start_proxy_internal(
             "已切换到代理 Profile"
         );
     } else {
-        // amp-code 使用 resolve_amp_selection 动态获取配置，无需 Profile 切换
+        // amp-code：直接修改 Amp 原生配置文件
+        let proxy_url = format!("http://127.0.0.1:{}", tool_config.port);
+        let local_key = tool_config
+            .local_api_key
+            .as_ref()
+            .ok_or_else(|| "透明代理保护密钥未设置".to_string())?;
+
+        // 1. 完整备份当前 Amp 配置
+        let backup = amp_native_config::backup_amp_config()
+            .map_err(|e| format!("备份 Amp 配置失败: {}", e))?;
+
+        tool_config.original_amp_settings = backup.settings_json;
+        tool_config.original_amp_secrets = backup.secrets_json;
+
+        // 2. 保存备份到 proxy.json
+        proxy_config_mgr
+            .update_config(tool_id, tool_config.clone())
+            .map_err(|e| e.to_string())?;
+
+        // 3. 应用代理配置
+        amp_native_config::apply_proxy_config(&proxy_url, local_key)
+            .map_err(|e| format!("应用 Amp 代理配置失败: {}", e))?;
+
         tracing::info!(
             tool_id = %tool_id,
-            "Amp Code 代理启动，将动态路由到用户选择的 Profile"
+            proxy_url = %proxy_url,
+            has_original_settings = tool_config.original_amp_settings.is_some(),
+            has_original_secrets = tool_config.original_amp_secrets.is_some(),
+            "已应用 Amp 代理配置"
         );
     }
 
@@ -321,8 +347,34 @@ pub async fn stop_tool_proxy(
         .await
         .map_err(|e| format!("停止代理失败: {e}"))?;
 
-    // ========== Profile 还原逻辑 ==========
+    // ========== 还原逻辑 ==========
 
+    if tool_id == "amp-code" {
+        // amp-code：完整还原 Amp 原生配置文件
+        let backup = amp_native_config::AmpConfigBackup {
+            settings_json: tool_config.original_amp_settings.take(),
+            secrets_json: tool_config.original_amp_secrets.take(),
+        };
+
+        amp_native_config::restore_amp_config(&backup)
+            .map_err(|e| format!("还原 Amp 配置失败: {}", e))?;
+
+        // 清空备份字段
+        proxy_config_mgr
+            .update_config(&tool_id, tool_config)
+            .map_err(|e| e.to_string())?;
+
+        tracing::info!(
+            tool_id = %tool_id,
+            had_settings = backup.settings_json.is_some(),
+            had_secrets = backup.secrets_json.is_some(),
+            "已完整还原 Amp 配置"
+        );
+
+        return Ok(format!("✅ {tool_id} 透明代理已停止\n已完整还原 Amp 配置"));
+    }
+
+    // 其他工具：Profile 还原逻辑
     let original_profile = tool_config.original_active_profile.take();
 
     if let Some(profile_name) = original_profile {
@@ -530,6 +582,10 @@ pub async fn update_proxy_config(
                         None, // 不设置 model，保留用户原有配置
                     )
                     .map_err(|e| format!("同步内置 Profile 失败: {}", e))?;
+            }
+            "amp-code" => {
+                // AMP 不需要创建内置 Profile，配置已保存到 proxy.json
+                tracing::debug!(tool_id = %tool_id, "AMP 代理配置已保存，跳过 Profile 同步");
             }
             _ => return Err(format!("不支持的工具: {}", tool_id)),
         }
