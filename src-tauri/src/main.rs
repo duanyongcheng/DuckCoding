@@ -370,6 +370,8 @@ fn main() {
         pm_get_active_profile_name,
         pm_get_active_profile,
         pm_capture_from_native,
+        pm_get_amp_selection,
+        pm_save_amp_selection,
         // 供应商管理命令（v1.5.0）
         list_providers,
         create_provider,
