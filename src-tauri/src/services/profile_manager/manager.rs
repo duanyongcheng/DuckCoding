@@ -411,13 +411,41 @@ impl ProfileManager {
         // 应用到原生配置文件
         self.apply_to_native(tool_id, profile_name)?;
 
-        // 读取应用后的配置并保存快照
+        // 读取应用后的配置并保存快照（为每个工具读取所有配置文件）
         let tool = crate::models::Tool::by_id(tool_id)
             .ok_or_else(|| anyhow!("未找到工具: {}", tool_id))?;
-        let config_path = tool.config_dir.join(&tool.config_file);
-        if config_path.exists() {
-            let manager = crate::data::DataManager::new();
-            let snapshot = manager.json_uncached().read(&config_path)?;
+        let manager = crate::data::DataManager::new();
+        let mut files_snapshot = std::collections::HashMap::new();
+
+        for filename in tool.config_files() {
+            let config_path = tool.config_dir.join(&filename);
+            if !config_path.exists() {
+                continue;
+            }
+
+            let content = if filename.ends_with(".json") {
+                // JSON 文件：直接读取
+                manager.json_uncached().read(&config_path)?
+            } else if filename.ends_with(".toml") {
+                // TOML 文件：读取后转换为 JSON
+                let doc = manager.toml().read_document(&config_path)?;
+                let toml_str = doc.to_string();
+                let toml_value: toml::Value = toml::from_str(&toml_str)
+                    .map_err(|e| anyhow!("TOML 解析失败: {}", e))?;
+                serde_json::to_value(toml_value)?
+            } else if filename.ends_with(".env") || filename == ".env" {
+                // ENV 文件：读取为 HashMap 后转换为 JSON
+                let env_map = manager.env().read(&config_path)?;
+                serde_json::to_value(env_map)?
+            } else {
+                continue;
+            };
+
+            files_snapshot.insert(filename.clone(), content);
+        }
+
+        if !files_snapshot.is_empty() {
+            let snapshot = serde_json::to_value(files_snapshot)?;
             self.save_native_snapshot(tool_id, snapshot)?;
             tracing::debug!("已保存 Profile 快照: {} / {}", tool_id, profile_name);
         }

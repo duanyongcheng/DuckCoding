@@ -10,6 +10,7 @@
 // - balance: 余额监控配置管理
 // - provider_manager: 供应商配置管理
 // - new_api: NEW API 客户端服务
+// - token_stats: Token统计和请求记录
 
 pub mod balance;
 pub mod config;
@@ -21,6 +22,7 @@ pub mod provider_manager; // 供应商配置管理
 pub mod proxy;
 pub mod proxy_config_manager; // 透明代理配置管理（v2.1）
 pub mod session;
+pub mod token_stats; // Token统计服务
 pub mod tool;
 pub mod update;
 
@@ -38,6 +40,8 @@ pub use provider_manager::ProviderManager;
 pub use proxy::*;
 // session 模块：明确导出避免 db 名称冲突
 pub use session::{manager::SESSION_MANAGER, models::*};
+// token_stats 模块：导出管理器和提取器
+pub use token_stats::{TokenStatsDb, TokenStatsManager};
 // tool 模块：导出主要服务类和子模块
 pub use tool::{
     db::ToolInstanceDB, downloader, downloader::FileDownloader, installer,

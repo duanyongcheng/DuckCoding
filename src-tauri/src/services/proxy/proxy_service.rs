@@ -231,6 +231,7 @@ mod tests {
             single_instance_enabled: true,
             startup_enabled: false,
             config_watch: crate::models::config::ConfigWatchConfig::default(),
+            token_stats_config: crate::models::config::TokenStatsConfig::default(),
         };
 
         let url = ProxyService::build_proxy_url(&config);
@@ -261,6 +262,7 @@ mod tests {
             single_instance_enabled: true,
             startup_enabled: false,
             config_watch: crate::models::config::ConfigWatchConfig::default(),
+            token_stats_config: crate::models::config::TokenStatsConfig::default(),
         };
 
         let url = ProxyService::build_proxy_url(&config);
@@ -294,6 +296,7 @@ mod tests {
             single_instance_enabled: true,
             startup_enabled: false,
             config_watch: crate::models::config::ConfigWatchConfig::default(),
+            token_stats_config: crate::models::config::TokenStatsConfig::default(),
         };
 
         let url = ProxyService::build_proxy_url(&config);

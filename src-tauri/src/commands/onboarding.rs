@@ -29,6 +29,7 @@ fn create_minimal_config() -> GlobalConfig {
         single_instance_enabled: true,
         startup_enabled: false,
         config_watch: duckcoding::models::config::ConfigWatchConfig::default(),
+        token_stats_config: duckcoding::models::config::TokenStatsConfig::default(),
     }
 }
 

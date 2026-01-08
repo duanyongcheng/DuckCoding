@@ -192,6 +192,7 @@ impl MigrationManager {
                 single_instance_enabled: true,
                 startup_enabled: false,
                 config_watch: crate::models::config::ConfigWatchConfig::default(),
+                token_stats_config: crate::models::config::TokenStatsConfig::default(),
             });
 
         config.version = Some(new_version.to_string());

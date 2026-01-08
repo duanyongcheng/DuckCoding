@@ -114,6 +114,34 @@ pub struct ConfigWatchConfig {
     pub sensitive_fields: HashMap<String, Vec<String>>,
 }
 
+/// Token统计配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenStatsConfig {
+    /// 数据保留天数（None表示不限制）
+    #[serde(default)]
+    pub retention_days: Option<u32>,
+    /// 最大日志条数（None表示不限制）
+    #[serde(default)]
+    pub max_log_count: Option<u32>,
+    /// 是否启用自动清理
+    #[serde(default = "default_auto_cleanup_enabled")]
+    pub auto_cleanup_enabled: bool,
+}
+
+impl Default for TokenStatsConfig {
+    fn default() -> Self {
+        Self {
+            retention_days: Some(30),
+            max_log_count: Some(10000),
+            auto_cleanup_enabled: true,
+        }
+    }
+}
+
+fn default_auto_cleanup_enabled() -> bool {
+    true
+}
+
 /// 配置文件快照
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSnapshot {
@@ -247,6 +275,9 @@ pub struct GlobalConfig {
     /// 配置监听配置
     #[serde(default)]
     pub config_watch: ConfigWatchConfig,
+    /// Token统计配置
+    #[serde(default)]
+    pub token_stats_config: TokenStatsConfig,
 }
 
 fn default_proxy_configs() -> HashMap<String, ToolProxyConfig> {

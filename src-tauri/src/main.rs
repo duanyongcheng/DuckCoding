@@ -290,6 +290,11 @@ fn main() {
         clear_all_sessions,
         update_session_config,
         update_session_note,
+        // Token统计命令
+        get_session_stats,
+        query_token_logs,
+        cleanup_token_logs,
+        get_token_stats_summary,
         // 配置监听控制
         block_external_change,
         allow_external_change,
