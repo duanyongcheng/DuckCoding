@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { CloseActionDialog } from '@/components/dialogs/CloseActionDialog';
 import { UpdateDialog } from '@/components/dialogs/UpdateDialog';
+import { ConfigChangeDialog } from '@/components/dialogs/ConfigChangeDialog';
 import { InstallationPage } from '@/pages/InstallationPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import ProfileManagementPage from '@/pages/ProfileManagementPage';
@@ -12,9 +13,11 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { TransparentProxyPage } from '@/pages/TransparentProxyPage';
 import { ToolManagementPage } from '@/pages/ToolManagementPage';
 import { HelpPage } from '@/pages/HelpPage';
+import { AboutPage } from '@/pages/AboutPage';
 import { useToast } from '@/hooks/use-toast';
 import { useAppEvents } from '@/hooks/useAppEvents';
 import { useCloseAction } from '@/hooks/useCloseAction';
+import { useConfigWatch } from '@/hooks/useConfigWatch';
 import { Toaster } from '@/components/ui/toaster';
 import { BalancePage } from '@/pages/BalancePage';
 import OnboardingOverlay from '@/components/Onboarding/OnboardingOverlay';
@@ -43,7 +46,8 @@ type TabType =
   | 'transparent-proxy'
   | 'provider-management'
   | 'settings'
-  | 'help';
+  | 'help'
+  | 'about';
 
 function App() {
   const { toast } = useToast();
@@ -71,6 +75,14 @@ function App() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateCheckDone, setUpdateCheckDone] = useState(false);
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+
+  // 配置监听
+  const {
+    change: configChange,
+    showDialog: showConfigDialog,
+    closeDialog: closeConfigDialog,
+    queueLength,
+  } = useConfigWatch();
 
   // 加载工具状态（全局缓存）
   const loadTools = useCallback(async () => {
@@ -385,6 +397,15 @@ function App() {
           )}
           {activeTab === 'provider-management' && <ProviderManagementPage />}
           {activeTab === 'help' && <HelpPage onShowOnboarding={handleShowOnboarding} />}
+          {activeTab === 'about' && (
+            <AboutPage
+              updateInfo={updateInfo}
+              onUpdateCheck={() => {
+                setUpdateInfo(null);
+                setIsUpdateDialogOpen(true);
+              }}
+            />
+          )}
         </main>
 
         {/* 更新对话框 */}
@@ -409,6 +430,14 @@ function App() {
           onExecuteAction={(action: CloseAction, remember: boolean) =>
             executeCloseAction(action, remember, false)
           }
+        />
+
+        {/* 配置变更通知对话框 */}
+        <ConfigChangeDialog
+          open={showConfigDialog}
+          onClose={closeConfigDialog}
+          change={configChange}
+          queueLength={queueLength}
         />
 
         {/* Toast 通知 */}

@@ -114,6 +114,7 @@ mod tests {
             external_poll_interval_ms: 5000,
             single_instance_enabled: true,
             startup_enabled: false,
+            config_watch: crate::models::config::ConfigWatchConfig::default(),
         };
 
         let url = build_proxy_url(&config).unwrap();
@@ -143,6 +144,7 @@ mod tests {
             external_poll_interval_ms: 5000,
             single_instance_enabled: true,
             startup_enabled: false,
+            config_watch: crate::models::config::ConfigWatchConfig::default(),
         };
 
         let url = build_proxy_url(&config).unwrap();

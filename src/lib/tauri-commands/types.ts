@@ -195,24 +195,6 @@ export interface ClaudeSettingsPayload {
   extraConfig?: JsonObject | null;
 }
 
-export interface ExternalConfigChange {
-  tool_id: string;
-  path: string;
-  checksum?: string;
-  detected_at: string;
-  dirty: boolean;
-  timestamp?: string;
-  fallback_poll?: boolean;
-}
-
-export interface ImportExternalChangeResult {
-  profileName: string;
-  wasNew: boolean;
-  replaced: boolean;
-  beforeChecksum?: string | null;
-  checksum?: string | null;
-}
-
 export interface TestProxyResult {
   success: boolean;
   status: number;

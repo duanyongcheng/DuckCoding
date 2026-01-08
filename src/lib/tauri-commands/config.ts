@@ -13,8 +13,6 @@ import type {
   JsonValue,
   TestProxyResult,
   ProxyTestConfig,
-  ExternalConfigChange,
-  ImportExternalChangeResult,
 } from './types';
 
 // ==================== 全局配置 ====================
@@ -168,71 +166,6 @@ export async function saveGeminiSettings(
  */
 export async function getGeminiSchema(): Promise<JsonSchema> {
   return await invoke<JsonSchema>('get_gemini_schema');
-}
-
-// ==================== 配置监听 ====================
-
-/**
- * 获取配置监听器状态
- */
-export async function getWatcherStatus(): Promise<boolean> {
-  return await invoke<boolean>('get_watcher_status');
-}
-
-/**
- * 启动配置监听器（如果需要）
- */
-export async function startWatcherIfNeeded(): Promise<boolean> {
-  return await invoke<boolean>('start_watcher_if_needed');
-}
-
-/**
- * 停止配置监听器
- */
-export async function stopWatcher(): Promise<boolean> {
-  return await invoke<boolean>('stop_watcher');
-}
-
-/**
- * 保存配置监听器设置
- */
-export async function saveWatcherSettings(
-  enabled: boolean,
-  pollIntervalMs?: number,
-): Promise<void> {
-  await invoke<void>('save_watcher_settings', {
-    enabled,
-    pollIntervalMs,
-  });
-}
-
-/**
- * 获取外部配置变更列表
- */
-export async function getExternalChanges(): Promise<ExternalConfigChange[]> {
-  return await invoke<ExternalConfigChange[]>('get_external_changes');
-}
-
-/**
- * 确认外部配置变更
- */
-export async function ackExternalChange(tool: string): Promise<void> {
-  return await invoke<void>('ack_external_change', { tool });
-}
-
-/**
- * 导入原生配置变更为 Profile
- */
-export async function importNativeChange(
-  tool: string,
-  profile: string,
-  asNew: boolean,
-): Promise<ImportExternalChangeResult> {
-  return await invoke<ImportExternalChangeResult>('import_native_change', {
-    tool,
-    profile,
-    asNew,
-  });
 }
 
 // ==================== 单实例模式配置 ====================

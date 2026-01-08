@@ -81,6 +81,64 @@ pub struct OnboardingStatus {
     pub completed_at: Option<String>,
 }
 
+/// 配置监听模式
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum WatchMode {
+    /// 默认模式：仅检测敏感字段（API Key/URL）
+    #[default]
+    Default,
+    /// 全量模式：检测所有变更
+    Full,
+}
+
+/// 配置监听配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigWatchConfig {
+    /// 是否启用配置守护
+    #[serde(default = "default_config_guard_enabled")]
+    pub enabled: bool,
+    /// 监听模式
+    #[serde(default)]
+    pub mode: WatchMode,
+    /// 扫描间隔（秒）
+    #[serde(default = "default_scan_interval")]
+    pub scan_interval: u64,
+    /// 黑名单字段（按工具分组）
+    /// 格式：{ "claude-code": ["env.model", "theme"], ... }
+    #[serde(default = "default_watch_blacklist")]
+    pub blacklist: HashMap<String, Vec<String>>,
+    /// 敏感字段（按工具分组）
+    /// 格式：{ "claude-code": ["env.ANTHROPIC_AUTH_TOKEN", ...], ... }
+    #[serde(default = "default_sensitive_fields")]
+    pub sensitive_fields: HashMap<String, Vec<String>>,
+}
+
+/// 配置文件快照
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigSnapshot {
+    /// 工具 ID
+    pub tool_id: String,
+    /// 配置文件快照（文件名 -> 内容）
+    /// 对于 JSON 文件，直接存储 JSON 值
+    /// 对于 TOML/ENV 文件，转换为 JSON 对象存储
+    pub files: HashMap<String, serde_json::Value>,
+    /// 最后更新时间
+    pub last_updated: chrono::DateTime<chrono::Utc>,
+}
+
+impl Default for ConfigWatchConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_config_guard_enabled(),
+            mode: WatchMode::Default,
+            scan_interval: default_scan_interval(),
+            blacklist: default_watch_blacklist(),
+            sensitive_fields: default_sensitive_fields(),
+        }
+    }
+}
+
 impl LogConfig {
     /// 检查新配置是否可以热重载（无需重启应用）
     /// 只有日志级别变更可以热重载，其他配置需要重启
@@ -186,6 +244,9 @@ pub struct GlobalConfig {
     /// 开机自启动开关（默认关闭）
     #[serde(default)]
     pub startup_enabled: bool,
+    /// 配置监听配置
+    #[serde(default)]
+    pub config_watch: ConfigWatchConfig,
 }
 
 fn default_proxy_configs() -> HashMap<String, ToolProxyConfig> {
@@ -302,4 +363,72 @@ fn default_external_poll_interval_ms() -> u64 {
 
 fn default_single_instance_enabled() -> bool {
     true
+}
+
+/// 默认配置守护启用状态
+fn default_config_guard_enabled() -> bool {
+    true
+}
+
+/// 默认扫描间隔（秒）
+fn default_scan_interval() -> u64 {
+    2
+}
+
+pub fn default_watch_blacklist() -> HashMap<String, Vec<String>> {
+    let mut map = HashMap::new();
+    map.insert(
+        "claude-code".to_string(),
+        vec![
+            "theme".to_string(),
+            "keyBindings".to_string(),
+            "ui.*".to_string(),
+            "editor.*".to_string(),
+        ],
+    );
+    map.insert(
+        "codex".to_string(),
+        vec![
+            "network_access".to_string(),
+            "ui.*".to_string(),
+            "editor.*".to_string(),
+        ],
+    );
+    map.insert(
+        "gemini-cli".to_string(),
+        vec![
+            "ui.*".to_string(),
+            "cache.*".to_string(),
+            "log_level".to_string(),
+        ],
+    );
+    map
+}
+
+pub fn default_sensitive_fields() -> HashMap<String, Vec<String>> {
+    let mut map = HashMap::new();
+    map.insert(
+        "claude-code".to_string(),
+        vec![
+            "env.ANTHROPIC_AUTH_TOKEN".to_string(),
+            "env.ANTHROPIC_BASE_URL".to_string(),
+        ],
+    );
+    map.insert(
+        "codex".to_string(),
+        vec![
+            "auth.json:OPENAI_API_KEY".to_string(),
+            "model_provider".to_string(),
+            "model_providers.*.base_url".to_string(),
+            "model_providers.*.wire_api".to_string(),
+        ],
+    );
+    map.insert(
+        "gemini-cli".to_string(),
+        vec![
+            ".env:GEMINI_API_KEY".to_string(),
+            ".env:GOOGLE_GEMINI_BASE_URL".to_string(),
+        ],
+    );
+    map
 }

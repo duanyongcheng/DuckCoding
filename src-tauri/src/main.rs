@@ -1,12 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use duckcoding::services::config::{NotifyWatcherManager, EXTERNAL_CHANGE_EVENT};
 use duckcoding::services::proxy::config::apply_global_proxy;
 use duckcoding::utils::config::read_global_config;
 use serde::Serialize;
 use std::env;
-use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
 // 导入 commands 模块
@@ -17,10 +15,6 @@ use commands::*;
 mod setup;
 
 const SINGLE_INSTANCE_EVENT: &str = "single-instance";
-
-struct ExternalWatcherState {
-    manager: Mutex<Option<NotifyWatcherManager>>,
-}
 
 #[derive(Clone, Serialize)]
 struct SingleInstancePayload {
@@ -87,36 +81,18 @@ fn setup_working_directory(app: &tauri::App) -> tauri::Result<()> {
 
 /// 启动配置文件监听（如果启用）
 fn start_config_watcher(app: &tauri::App) -> tauri::Result<()> {
-    if let Some(state) = app.try_state::<ExternalWatcherState>() {
-        let enable_watch = match read_global_config() {
-            Ok(Some(cfg)) => cfg.external_watch_enabled,
-            _ => true,
-        };
-        if !enable_watch {
-            tracing::info!("External config watcher disabled by config");
-        }
+    use duckcoding::services::config::{initialize_snapshots, start_watcher};
 
-        if let Ok(mut guard) = state.manager.lock() {
-            if guard.is_none() && enable_watch {
-                match NotifyWatcherManager::start_all(app.handle().clone()) {
-                    Ok(manager) => {
-                        tracing::debug!(
-                            "Config notify watchers started, emitting event {EXTERNAL_CHANGE_EVENT}"
-                        );
-                        *guard = Some(manager);
-                    }
-                    Err(err) => {
-                        tracing::error!("Failed to start notify watchers: {err:?}");
-                    }
-                }
-            } else {
-                tracing::info!(
-                    already_running = guard.is_some(),
-                    enable_watch,
-                    "Skip starting notify watcher"
-                );
-            }
-        }
+    // 初始化配置快照
+    if let Err(e) = initialize_snapshots() {
+        tracing::warn!("初始化配置快照失败: {}", e);
+    }
+
+    // 启动文件监听
+    if let Err(e) = start_watcher(app.handle().clone()) {
+        tracing::error!("启动配置监听失败: {}", e);
+    } else {
+        tracing::info!("配置文件监听已启动");
     }
 
     Ok(())
@@ -181,10 +157,6 @@ fn main() {
         setup::initialize_app().await.expect("应用初始化失败")
     });
 
-    let watcher_state = ExternalWatcherState {
-        manager: Mutex::new(None),
-    };
-
     let proxy_manager_state = ProxyManagerState {
         manager: init_ctx.proxy_manager,
     };
@@ -214,7 +186,6 @@ fn main() {
 
     let builder = tauri::Builder::default()
         .manage(proxy_manager_state)
-        .manage(watcher_state)
         .manage(update_service_state)
         .manage(tool_registry_state)
         .manage(profile_manager_state)
@@ -276,9 +247,6 @@ fn main() {
         save_global_config,
         get_global_config,
         generate_api_key_for_tool,
-        get_external_changes,
-        ack_external_change,
-        import_native_change,
         // 使用统计
         get_usage_stats,
         get_user_quota,
@@ -323,10 +291,20 @@ fn main() {
         update_session_config,
         update_session_note,
         // 配置监听控制
-        get_watcher_status,
-        start_watcher_if_needed,
-        stop_watcher,
-        save_watcher_settings,
+        block_external_change,
+        allow_external_change,
+        get_watch_config,
+        update_watch_config,
+        // 配置守护管理
+        update_sensitive_fields,
+        update_blacklist,
+        get_default_sensitive_fields,
+        get_default_blacklist,
+        // 变更日志管理
+        get_change_logs,
+        get_change_logs_page,
+        clear_change_logs,
+        update_change_log_action,
         // 更新管理相关命令
         check_for_app_updates,
         download_app_update,

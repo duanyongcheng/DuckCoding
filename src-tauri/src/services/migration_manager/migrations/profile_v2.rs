@@ -451,6 +451,8 @@ impl ProfileV2Migration {
             switched_at: old_state.last_synced_at.unwrap_or_else(Utc::now),
             native_checksum: old_state.native_checksum,
             dirty: old_state.dirty,
+            native_snapshot: None,
+            last_synced_at: old_state.last_synced_at.unwrap_or_else(Utc::now),
         }))
     }
 

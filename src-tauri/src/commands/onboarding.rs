@@ -28,6 +28,7 @@ fn create_minimal_config() -> GlobalConfig {
         external_poll_interval_ms: 5000,
         single_instance_enabled: true,
         startup_enabled: false,
+        config_watch: duckcoding::models::config::ConfigWatchConfig::default(),
     }
 }
 

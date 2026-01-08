@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Info,
   //预留
   // User,
 } from 'lucide-react';
@@ -53,6 +54,7 @@ const secondaryItems = [
   { id: 'provider-management', label: '供应商', icon: Building2 },
   { id: 'help', label: '帮助', icon: HelpCircle },
   { id: 'settings', label: '设置', icon: SettingsIcon },
+  { id: 'about', label: '关于', icon: Info },
 ];
 
 export function AppSidebar({

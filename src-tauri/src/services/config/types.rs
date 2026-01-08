@@ -45,6 +45,18 @@ pub struct ExternalConfigChange {
     pub checksum: Option<String>,
     pub detected_at: DateTime<Utc>,
     pub dirty: bool,
+    /// 变更字段路径列表（如 ["env.ANTHROPIC_AUTH_TOKEN", "env.ANTHROPIC_BASE_URL"]）
+    #[serde(default)]
+    pub changed_fields: Vec<String>,
+    /// 是否包含敏感字段
+    #[serde(default)]
+    pub is_sensitive: bool,
+    /// 新文件内容（用于前端展示和阻止操作）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_content: Option<Value>,
+    /// 旧文件内容（快照）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_content: Option<Value>,
 }
 
 /// 导入外部变更的结果

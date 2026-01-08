@@ -120,6 +120,27 @@ async fn run_migrations() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// 标记未处理的配置变更日志为已过期
+fn mark_expired_change_logs() -> Result<(), Box<dyn std::error::Error>> {
+    use duckcoding::data::changelogs::ChangeLogStore;
+
+    match ChangeLogStore::load() {
+        Ok(mut store) => {
+            store.mark_pending_as_expired();
+            if let Err(e) = store.save() {
+                tracing::warn!(error = ?e, "保存过期日志失败");
+            } else {
+                tracing::debug!("已标记未处理的配置变更日志为已过期");
+            }
+        }
+        Err(e) => {
+            tracing::warn!(error = ?e, "加载配置变更日志失败");
+        }
+    }
+
+    Ok(())
+}
+
 /// 自动启动配置的代理
 async fn auto_start_proxies(
     proxy_manager: &Arc<ProxyManager>,
@@ -130,7 +151,7 @@ async fn auto_start_proxies(
 
 /// 执行所有启动初始化任务
 ///
-/// 按顺序执行：日志 → Profile → 迁移 → 工具注册表 → 代理管理器
+/// 按顺序执行：日志 → Profile → 迁移 → 标记过期日志 → 工具注册表 → 代理管理器
 pub async fn initialize_app() -> Result<InitializationContext, Box<dyn std::error::Error>> {
     // 1. 初始化日志
     init_logging()?;
@@ -143,15 +164,20 @@ pub async fn initialize_app() -> Result<InitializationContext, Box<dyn std::erro
     // 3. 执行数据迁移
     run_migrations().await?;
 
-    // 4. 创建工具注册表
+    // 4. 标记未处理的配置变更日志为已过期
+    if let Err(e) = mark_expired_change_logs() {
+        tracing::warn!(error = ?e, "标记过期日志失败");
+    }
+
+    // 5. 创建工具注册表
     let tool_registry = ToolRegistry::new().await.expect("无法创建工具注册表");
 
-    // 5. 创建 ProfileManager 单例
+    // 6. 创建 ProfileManager 单例
     let profile_manager = Arc::new(tokio::sync::RwLock::new(
         ProfileManager::new().expect("初始化 ProfileManager 失败"),
     ));
 
-    // 6. 创建代理管理器并异步启动自启动代理
+    // 7. 创建代理管理器并异步启动自启动代理
     let proxy_manager = Arc::new(ProxyManager::new());
     let proxy_manager_for_auto_start = proxy_manager.clone();
     let profile_manager_for_auto_start = profile_manager.clone();

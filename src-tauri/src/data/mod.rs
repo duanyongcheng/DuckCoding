@@ -26,9 +26,11 @@
 //! ```
 
 pub mod cache;
+pub mod changelogs;
 pub mod error;
 pub mod manager;
 pub mod managers;
+pub mod snapshots;
 
 #[cfg(test)]
 mod migration_tests;

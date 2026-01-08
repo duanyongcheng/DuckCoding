@@ -1,16 +1,14 @@
 // 配置管理相关命令
 
-use super::error::{AppError, AppResult};
 use serde_json::Value;
 
 use ::duckcoding::services::config::{
-    self, claude, codex, gemini, ClaudeSettingsPayload, CodexSettingsPayload, ExternalConfigChange,
-    GeminiEnvPayload, GeminiSettingsPayload, ImportExternalChangeResult,
+    claude, codex, gemini, ClaudeSettingsPayload, CodexSettingsPayload, GeminiEnvPayload,
+    GeminiSettingsPayload,
 };
 use ::duckcoding::services::proxy::config::apply_global_proxy;
 use ::duckcoding::utils::config::{read_global_config, write_global_config};
 use ::duckcoding::GlobalConfig;
-use ::duckcoding::Tool;
 
 // ==================== 类型定义 ====================
 
@@ -47,32 +45,6 @@ fn build_reqwest_client() -> Result<reqwest::Client, String> {
 }
 
 // ==================== Tauri 命令 ====================
-
-/// 检测外部配置变更
-#[tauri::command]
-pub async fn get_external_changes() -> Result<Vec<ExternalConfigChange>, String> {
-    config::detect_external_changes().map_err(|e| e.to_string())
-}
-
-/// 确认外部变更（清除脏标记并刷新 checksum）
-#[tauri::command]
-pub async fn ack_external_change(tool: String) -> AppResult<()> {
-    let tool_obj =
-        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
-    Ok(config::acknowledge_external_change(&tool_obj)?)
-}
-
-/// 将外部修改导入集中仓
-#[tauri::command]
-pub async fn import_native_change(
-    tool: String,
-    profile: String,
-    as_new: bool,
-) -> AppResult<ImportExternalChangeResult> {
-    let tool_obj =
-        Tool::by_id(&tool).ok_or_else(|| AppError::ToolNotFound { tool: tool.clone() })?;
-    Ok(config::import_external_change(&tool_obj, &profile, as_new)?)
-}
 
 #[tauri::command]
 pub async fn save_global_config(config: GlobalConfig) -> Result<(), String> {
@@ -286,4 +258,320 @@ pub async fn update_single_instance_config(enabled: bool) -> Result<(), String> 
     tracing::info!(enabled = enabled, "单实例模式配置已更新（需重启生效）");
 
     Ok(())
+}
+
+// ==================== 配置监听命令 ====================
+
+/// 阻止外部变更（恢复到快照）
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID
+///
+/// # Returns
+///
+/// 操作成功返回 Ok
+#[tauri::command]
+pub fn block_external_change(tool_id: String) -> Result<(), String> {
+    use ::duckcoding::data::snapshots;
+    use ::duckcoding::data::DataManager;
+    use ::duckcoding::models::Tool;
+
+    // 获取快照
+    let snapshot = snapshots::get_snapshot(&tool_id)
+        .map_err(|e| format!("读取快照失败: {}", e))?
+        .ok_or_else(|| "没有可用的配置快照".to_string())?;
+
+    // 获取工具定义
+    let tool = Tool::by_id(&tool_id).ok_or_else(|| format!("未找到工具: {}", tool_id))?;
+    let manager = DataManager::new();
+
+    // 恢复所有配置文件
+    for (filename, content) in &snapshot.files {
+        let config_path = tool.config_dir.join(filename);
+
+        if filename.ends_with(".json") {
+            // JSON 文件：直接写入
+            manager
+                .json_uncached()
+                .write(&config_path, content)
+                .map_err(|e| format!("恢复 {} 失败: {}", filename, e))?;
+        } else if filename.ends_with(".toml") {
+            // TOML 文件：将 JSON 转换回 TOML
+            let toml_value: toml::Value = serde_json::from_value(content.clone())
+                .map_err(|e| format!("JSON 转 TOML 失败: {}", e))?;
+            let toml_str =
+                toml::to_string(&toml_value).map_err(|e| format!("TOML 序列化失败: {}", e))?;
+            std::fs::write(&config_path, toml_str)
+                .map_err(|e| format!("写入 {} 失败: {}", filename, e))?;
+        } else if filename.ends_with(".env") || filename == ".env" {
+            // ENV 文件：将 JSON 转换回键值对
+            let env_map: std::collections::HashMap<String, String> =
+                serde_json::from_value(content.clone())
+                    .map_err(|e| format!("JSON 转 ENV 失败: {}", e))?;
+            manager
+                .env()
+                .write(&config_path, &env_map)
+                .map_err(|e| format!("恢复 {} 失败: {}", filename, e))?;
+        } else {
+            tracing::warn!("不支持的配置文件格式: {}", filename);
+        }
+    }
+
+    // 更新日志记录
+    use ::duckcoding::data::changelogs::ChangeLogStore;
+    let mut store = ChangeLogStore::load().map_err(|e| format!("加载日志失败: {}", e))?;
+    if let Err(e) = store.update_action(&tool_id, "block") {
+        tracing::warn!("更新日志记录失败: {}", e);
+    } else {
+        store.save().map_err(|e| format!("保存日志失败: {}", e))?;
+    }
+
+    tracing::info!(tool_id = %tool_id, "已阻止外部变更并恢复所有配置文件");
+
+    Ok(())
+}
+
+/// 允许外部变更（更新快照）
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID
+///
+/// # Returns
+///
+/// 操作成功返回 Ok
+#[tauri::command]
+pub fn allow_external_change(tool_id: String) -> Result<(), String> {
+    use ::duckcoding::models::Tool;
+
+    let tool = Tool::by_id(&tool_id).ok_or_else(|| format!("未找到工具: {}", tool_id))?;
+
+    // 重新保存快照（读取所有配置文件）
+    ::duckcoding::services::config::watcher::save_snapshot_for_tool(&tool)
+        .map_err(|e| format!("保存快照失败: {}", e))?;
+
+    // 更新日志记录
+    use ::duckcoding::data::changelogs::ChangeLogStore;
+    let mut store = ChangeLogStore::load().map_err(|e| format!("加载日志失败: {}", e))?;
+    if let Err(e) = store.update_action(&tool_id, "allow") {
+        tracing::warn!("更新日志记录失败: {}", e);
+    } else {
+        store.save().map_err(|e| format!("保存日志失败: {}", e))?;
+    }
+
+    tracing::info!(tool_id = %tool_id, "已允许外部变更并更新所有配置文件快照");
+
+    Ok(())
+}
+
+/// 获取监听配置
+#[tauri::command]
+pub fn get_watch_config() -> Result<::duckcoding::models::config::ConfigWatchConfig, String> {
+    let config = read_global_config()
+        .map_err(|e| format!("读取配置失败: {e}"))?
+        .ok_or("配置文件不存在")?;
+    Ok(config.config_watch)
+}
+
+/// 更新监听配置
+#[tauri::command]
+pub fn update_watch_config(
+    config: ::duckcoding::models::config::ConfigWatchConfig,
+) -> Result<(), String> {
+    let mut global_config = read_global_config()
+        .map_err(|e| format!("读取配置失败: {e}"))?
+        .ok_or("配置文件不存在")?;
+    global_config.config_watch = config;
+    write_global_config(&global_config).map_err(|e| format!("保存配置失败: {e}"))?;
+
+    tracing::info!("配置监听配置已更新");
+
+    Ok(())
+}
+
+// ==================== 配置守护管理命令 ====================
+
+/// 更新敏感字段配置
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID
+/// * `fields` - 敏感字段列表
+#[tauri::command]
+pub fn update_sensitive_fields(tool_id: String, fields: Vec<String>) -> Result<(), String> {
+    let mut config = read_global_config()
+        .map_err(|e| format!("读取配置失败: {e}"))?
+        .ok_or("配置文件不存在")?;
+
+    config
+        .config_watch
+        .sensitive_fields
+        .insert(tool_id.clone(), fields);
+
+    write_global_config(&config).map_err(|e| format!("保存配置失败: {e}"))?;
+
+    tracing::info!(tool_id = %tool_id, "敏感字段配置已更新");
+
+    Ok(())
+}
+
+/// 更新黑名单配置
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID
+/// * `fields` - 黑名单字段列表
+#[tauri::command]
+pub fn update_blacklist(tool_id: String, fields: Vec<String>) -> Result<(), String> {
+    let mut config = read_global_config()
+        .map_err(|e| format!("读取配置失败: {e}"))?
+        .ok_or("配置文件不存在")?;
+
+    config
+        .config_watch
+        .blacklist
+        .insert(tool_id.clone(), fields);
+
+    write_global_config(&config).map_err(|e| format!("保存配置失败: {e}"))?;
+
+    tracing::info!(tool_id = %tool_id, "黑名单配置已更新");
+
+    Ok(())
+}
+
+/// 获取默认敏感字段配置
+#[tauri::command]
+pub fn get_default_sensitive_fields(
+) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    use ::duckcoding::models::config::default_sensitive_fields;
+    Ok(default_sensitive_fields())
+}
+
+/// 获取默认黑名单配置
+#[tauri::command]
+pub fn get_default_blacklist() -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    use ::duckcoding::models::config::default_watch_blacklist;
+    Ok(default_watch_blacklist())
+}
+
+// ==================== 变更日志管理命令 ====================
+
+/// 获取配置变更日志
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID（可选，不传则返回所有工具的日志）
+/// * `limit` - 返回条数限制（默认 50）
+#[tauri::command]
+pub fn get_change_logs(
+    tool_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<::duckcoding::data::changelogs::ConfigChangeRecord>, String> {
+    use ::duckcoding::data::changelogs::ChangeLogStore;
+
+    let store = ChangeLogStore::load().map_err(|e| format!("读取日志失败: {e}"))?;
+    let limit = limit.unwrap_or(50);
+    let tool_id_ref = tool_id.as_deref();
+
+    let records: Vec<_> = store
+        .get_recent(tool_id_ref, limit)
+        .into_iter()
+        .cloned()
+        .collect();
+
+    Ok(records)
+}
+
+/// 分页获取配置变更日志
+///
+/// # Arguments
+///
+/// * `page` - 页码（从 0 开始）
+/// * `page_size` - 每页条数
+///
+/// # Returns
+///
+/// 返回 (records, total) 元组
+#[tauri::command]
+pub fn get_change_logs_page(
+    page: usize,
+    page_size: usize,
+) -> Result<
+    (
+        Vec<::duckcoding::data::changelogs::ConfigChangeRecord>,
+        usize,
+    ),
+    String,
+> {
+    use ::duckcoding::data::changelogs::ChangeLogStore;
+
+    let store = ChangeLogStore::load().map_err(|e| format!("读取日志失败: {e}"))?;
+    let (records, total) = store.get_page(page, page_size);
+
+    Ok((records, total))
+}
+
+/// 清除配置变更日志
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID（可选，不传则清除所有日志）
+#[tauri::command]
+pub fn clear_change_logs(tool_id: Option<String>) -> Result<(), String> {
+    use ::duckcoding::data::changelogs::ChangeLogStore;
+
+    let mut store = ChangeLogStore::load().map_err(|e| format!("读取日志失败: {e}"))?;
+
+    if let Some(id) = tool_id {
+        store.clear_for_tool(&id);
+        tracing::info!(tool_id = %id, "已清除工具变更日志");
+    } else {
+        store.clear_all();
+        tracing::info!("已清除所有变更日志");
+    }
+
+    store.save().map_err(|e| format!("保存日志失败: {e}"))?;
+
+    Ok(())
+}
+
+/// 更新变更日志的用户操作
+///
+/// # Arguments
+///
+/// * `tool_id` - 工具 ID
+/// * `timestamp` - 变更时间戳（ISO 8601 格式）
+/// * `action` - 用户操作（allow/block）
+#[tauri::command]
+pub fn update_change_log_action(
+    tool_id: String,
+    timestamp: String,
+    action: String,
+) -> Result<(), String> {
+    use ::duckcoding::data::changelogs::ChangeLogStore;
+    use chrono::{DateTime, Utc};
+
+    let mut store = ChangeLogStore::load().map_err(|e| format!("读取日志失败: {e}"))?;
+    let ts: DateTime<Utc> = timestamp
+        .parse()
+        .map_err(|e| format!("时间戳格式错误: {e}"))?;
+
+    // 查找并更新记录
+    if let Some(record) = store
+        .records
+        .iter_mut()
+        .find(|r| r.tool_id == tool_id && r.timestamp == ts)
+    {
+        record.action = Some(action.clone());
+        store.save().map_err(|e| format!("保存日志失败: {e}"))?;
+        tracing::info!(
+            tool_id = %tool_id,
+            action = %action,
+            "变更日志操作已更新"
+        );
+        Ok(())
+    } else {
+        Err("未找到匹配的变更记录".to_string())
+    }
 }

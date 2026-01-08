@@ -411,6 +411,17 @@ impl ProfileManager {
         // 应用到原生配置文件
         self.apply_to_native(tool_id, profile_name)?;
 
+        // 读取应用后的配置并保存快照
+        let tool = crate::models::Tool::by_id(tool_id)
+            .ok_or_else(|| anyhow!("未找到工具: {}", tool_id))?;
+        let config_path = tool.config_dir.join(&tool.config_file);
+        if config_path.exists() {
+            let manager = crate::data::DataManager::new();
+            let snapshot = manager.json_uncached().read(&config_path)?;
+            self.save_native_snapshot(tool_id, snapshot)?;
+            tracing::debug!("已保存 Profile 快照: {} / {}", tool_id, profile_name);
+        }
+
         Ok(())
     }
 
@@ -689,6 +700,47 @@ impl ProfileManager {
             "gemini-cli" => self.delete_gemini_profile(name),
             _ => Err(anyhow!("不支持的工具 ID: {}", tool_id)),
         }
+    }
+
+    // ==================== 快照管理 ====================
+
+    /// 保存原生配置快照到 ActiveProfile
+    ///
+    /// # Arguments
+    ///
+    /// * `tool_id` - 工具 ID
+    /// * `snapshot` - 配置快照（JSON Value）
+    ///
+    /// # Errors
+    ///
+    /// 当保存失败时返回错误
+    pub fn save_native_snapshot(&self, tool_id: &str, snapshot: serde_json::Value) -> Result<()> {
+        let mut active_store = self.load_active_store()?;
+
+        // 获取激活的 Profile 并更新快照
+        if let Some(active) = active_store.get_active_mut(tool_id) {
+            active.native_snapshot = Some(snapshot);
+            active.last_synced_at = chrono::Utc::now();
+            self.save_active_store(&active_store)
+        } else {
+            Err(anyhow!("工具 {} 没有激活的 Profile", tool_id))
+        }
+    }
+
+    /// 获取原生配置快照
+    ///
+    /// # Arguments
+    ///
+    /// * `tool_id` - 工具 ID
+    ///
+    /// # Returns
+    ///
+    /// 返回配置快照，如果不存在返回 None
+    pub fn get_native_snapshot(&self, tool_id: &str) -> Result<Option<serde_json::Value>> {
+        let active_store = self.load_active_store()?;
+        Ok(active_store
+            .get_active(tool_id)
+            .and_then(|a| a.native_snapshot.clone()))
     }
 }
 

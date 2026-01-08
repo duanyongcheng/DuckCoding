@@ -97,8 +97,20 @@ last-updated: 2025-12-16
     - `claude.rs`：Claude Code 配置管理（4个公共函数，实现 `ToolConfigManager` trait，177行）
     - `codex.rs`：Codex 配置管理（支持 config.toml + auth.json，保留 TOML 格式，204行）
     - `gemini.rs`：Gemini CLI 配置管理（支持 settings.json + .env 环境变量，199行）
-    - `watcher.rs`：外部变更检测 + 文件监听（合并原 `config_watcher.rs`，550行）
-      - 变更检测：`detect_external_changes`、`mark_external_change`、`acknowledge_external_change`
+    - `watcher.rs`：外部变更检测 + 文件监听 + 差异分析（合并原 `config_watcher.rs`，~650行）
+      - **差异分析（2026-01-07）**：
+        - `compute_diff()`：递归比较 JSON 对象，检测字段变更/新增/删除
+        - `matches_pattern()`：支持通配符模式匹配（如 `model_providers.*.base_url`）
+        - `is_sensitive_change()`：判断变更是否包含敏感字段（API Key、Base URL 等）
+        - `filter_blacklisted()`：过滤黑名单字段（如 theme、ui.\*、model 等自动修改字段）
+      - **双模式监听**：
+        - **默认模式（Default）**：仅通知敏感字段变更（API Key/URL），忽略其他变更
+        - **全量模式（Full）**：通知所有非黑名单字段的变更
+      - **变更处理**：
+        - `mark_external_change()`：增强版，包含完整差异分析和模式判断
+        - `block_external_change`：恢复快照到原生配置文件
+        - `allow_external_change`：更新快照为当前文件内容
+      - 变更检测：`detect_external_changes`、`acknowledge_external_change`
       - Profile 导入：`import_external_change`
       - 文件监听：`ConfigWatcher`（轮询，跨平台）、`NotifyWatcherManager`（notify，高性能）
       - 核心函数：`config_paths`（返回主配置 + 附属文件）、`compute_native_checksum`（SHA256 校验和）
@@ -106,7 +118,25 @@ last-updated: 2025-12-16
   - 废弃功能：删除 `ConfigService::save_backup` 系列函数（由 `ProfileManager` 替代）
   - 变更检测：与 `ProfileManager` 集成，自动同步激活状态的 dirty 标记和 checksum
   - 命令层更新：`commands/config_commands.rs` 使用新模块路径（`config::claude::*`、`config::codex::*`、`config::gemini::*`）
-  - 测试状态：12 个测试（2 个轮询监听测试通过，10 个标记为 #[ignore]，需 ProfileManager 重写）
+  - **Tauri 命令（2026-01-07）**：新增配置监听控制命令
+    - `block_external_change`：阻止外部变更，恢复快照到原生配置文件
+    - `allow_external_change`：允许外部变更，更新快照为当前文件内容
+    - `get_watch_config`：获取监听配置（模式、黑名单、敏感字段）
+    - `update_watch_config`：更新监听配置
+  - **前端实现（2026-01-07）**：
+    - **类型定义**：`types/config-watch.ts` 定义 `WatchMode`、`ConfigWatchConfig`、`ExternalConfigChange` 等类型
+    - **命令包装**：`lib/tauri-commands/config-watch.ts` 提供 4 个命令的 TypeScript 封装
+    - **配置变更对话框**：`components/dialogs/ConfigChangeDialog.tsx` 显示变更详情，提供阻止/允许操作
+      - 展示工具名称、文件路径、变更字段列表（标记新增/删除）
+      - 敏感变更带警告图标和 Badge 标记
+      - 操作说明区域解释阻止和允许的含义
+    - **配置监听 Hook**：`hooks/useConfigWatch.ts` 监听 `config-external-change` 事件，管理对话框状态
+    - **全局集成**：`App.tsx` 使用 `useConfigWatch` hook，自动弹出配置变更对话框
+    - **设置页面**：`pages/SettingsPage/components/ConfigWatchTab.tsx` 提供监听配置管理界面
+      - 双模式选择（默认模式/全量模式）
+      - 敏感字段列表展示（按工具分组）
+      - 黑名单字段列表展示（按工具分组）
+  - 测试状态：15 个测试（11 个通过，包含 9 个差异分析/黑名单/模式匹配测试，4 个旧测试标记为 #[ignore] 待 ProfileManager 重写）
 - **工具管理系统**：
   - 多环境架构：支持本地（Local）、WSL、SSH 三种环境的工具实例管理
   - 数据模型：`ToolType`（环境类型）、`ToolInstance`（工具实例）存储在 `models/tool.rs`
@@ -209,6 +239,11 @@ last-updated: 2025-12-16
 - `ToolProxyConfig` 额外存储 `real_profile_name`、`auto_start`、工具级 `session_endpoint_config_enabled`，全局配置新增 `hide_transparent_proxy_tip` 控制设置页横幅显示
 - `GlobalConfig.hide_session_config_hint` 持久化会话级端点提示的隐藏状态，`ProxyControlBar`/`ProxySettingsDialog`/`ClaudeContent` 通过 `open-proxy-settings` 与 `proxy-config-updated` 事件联动刷新视图
 - 日志系统支持完整配置管理：`GlobalConfig.log_config` 存储级别/格式/输出目标；`log_commands.rs` 提供查询与更新命令，`LogSettingsTab` 可热重载级别、保存文件输出设置；`core/logger.rs` 通过 `update_log_level` reload 机制动态调整
+- **配置监听系统（2026-01-07）**：`GlobalConfig.config_watch: ConfigWatchConfig` 管理文件监听行为
+  - `mode: WatchMode`：监听模式（Default=仅敏感字段，Full=全量变更）
+  - `blacklist: HashMap<String, Vec<String>>`：按工具分组的黑名单字段（如 `theme.*`、`ui.*`、`model`），自动过滤不需通知的变更
+  - `sensitive_fields: HashMap<String, Vec<String>>`：按工具分组的敏感字段（API Key、Base URL 等），用于默认模式判断
+  - 配合 `ActiveProfile.native_snapshot` 实现 Block/Allow 操作
 - 应用启动时 `duckcoding::auto_start_proxies` 会读取配置，满足 `enabled && auto_start` 且存在 `local_api_key` 的代理会自动启动
 - `utils::config::migrate_session_config` 会将旧版 `GlobalConfig.session_endpoint_config_enabled` 自动迁移到各工具配置，确保升级过程不会丢开关
 - 全局配置读写统一走 `utils::config::{read_global_config, write_global_config, apply_proxy_if_configured}`，避免出现多份路径逻辑；任何命令要修改配置都应调用这些辅助函数。
@@ -252,6 +287,8 @@ last-updated: 2025-12-16
   - **数据结构**：
     - `ProfilesStore`：按工具分组（`claude_code`、`codex`、`gemini_cli`），每个工具包含 `HashMap<String, ProfileData>`
     - `ActiveStore`：每个工具一个 `Option<ActiveProfile>`，记录当前激活的 Profile 名称和切换时间
+      - `native_snapshot`（2026-01-07）：保存激活 Profile 应用后的完整原生配置快照（JSON），用于阻止外部变更时恢复
+      - `last_synced_at`（2026-01-07）：最后同步时间戳，配合 dirty 标记判断配置状态
     - `ProfilePayload`：Enum 类型，支持 Claude/Codex/Gemini 三种变体，存储工具特定配置和原生文件快照
   - **核心服务**（位于 `services/profile_manager/`）：
     - `ProfileManager`：统一的 Profile CRUD 接口，支持列表、创建、更新、删除、激活、导入导出

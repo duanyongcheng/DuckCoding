@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Save } from 'lucide-react';
@@ -8,16 +8,13 @@ import { useSettingsForm } from './hooks/useSettingsForm';
 import { BasicSettingsTab } from './components/BasicSettingsTab';
 import { ProxySettingsTab } from './components/ProxySettingsTab';
 import { LogSettingsTab } from './components/LogSettingsTab';
-import { AboutTab } from './components/AboutTab';
-import { ConfigManagementTab } from './components/ConfigManagementTab';
-import type { GlobalConfig, UpdateInfo } from '@/lib/tauri-commands';
+import { ConfigGuardTab } from './components/ConfigGuardTab';
+import type { GlobalConfig } from '@/lib/tauri-commands';
 
 interface SettingsPageProps {
   globalConfig: GlobalConfig | null;
   configLoading: boolean;
   onConfigChange: () => void;
-  updateInfo?: UpdateInfo | null;
-  onUpdateCheck?: () => void;
   initialTab?: string;
   restrictToTab?: string; // 限制只能访问特定 tab
 }
@@ -25,8 +22,6 @@ interface SettingsPageProps {
 export function SettingsPage({
   globalConfig,
   onConfigChange,
-  updateInfo: _updateInfo,
-  onUpdateCheck,
   initialTab = 'basic',
   restrictToTab,
 }: SettingsPageProps) {
@@ -69,22 +64,6 @@ export function SettingsPage({
     saveSettings,
     testProxy,
   } = useSettingsForm({ initialConfig: globalConfig, onConfigChange });
-
-  // 监听来自App组件的导航到关于tab的事件
-  useEffect(() => {
-    const handleNavigateToAboutTab = () => {
-      setActiveTab('about');
-    };
-
-    window.addEventListener('navigate-to-about-tab', handleNavigateToAboutTab);
-    // 保持向下兼容，同时也监听 update tab
-    window.addEventListener('navigate-to-update-tab', handleNavigateToAboutTab);
-
-    return () => {
-      window.removeEventListener('navigate-to-about-tab', handleNavigateToAboutTab);
-      window.removeEventListener('navigate-to-update-tab', handleNavigateToAboutTab);
-    };
-  }, []);
 
   // 测试代理连接
   const handleTestProxy = async () => {
@@ -163,19 +142,16 @@ export function SettingsPage({
             系统设置
           </TabsTrigger>
           <TabsTrigger
-            value="config-management"
-            disabled={!!restrictToTab && restrictToTab !== 'config-management'}
+            value="config-guard"
+            disabled={!!restrictToTab && restrictToTab !== 'config-guard'}
           >
-            配置管理
+            配置守护
           </TabsTrigger>
           <TabsTrigger value="proxy" disabled={!!restrictToTab && restrictToTab !== 'proxy'}>
             代理设置
           </TabsTrigger>
           <TabsTrigger value="log" disabled={!!restrictToTab && restrictToTab !== 'log'}>
             日志配置
-          </TabsTrigger>
-          <TabsTrigger value="about" disabled={!!restrictToTab && restrictToTab !== 'about'}>
-            关于
           </TabsTrigger>
         </TabsList>
 
@@ -213,14 +189,9 @@ export function SettingsPage({
           <LogSettingsTab />
         </TabsContent>
 
-        {/* 配置管理 */}
-        <TabsContent value="config-management" className="space-y-6">
-          <ConfigManagementTab />
-        </TabsContent>
-
-        {/* 关于 */}
-        <TabsContent value="about" className="space-y-6">
-          <AboutTab onCheckUpdate={() => onUpdateCheck?.()} />
+        {/* 配置守护 */}
+        <TabsContent value="config-guard" className="space-y-6">
+          <ConfigGuardTab />
         </TabsContent>
       </Tabs>
 

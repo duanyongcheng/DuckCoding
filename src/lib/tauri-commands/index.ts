@@ -10,6 +10,9 @@ export * from './tool';
 // 配置管理
 export * from './config';
 
+// 配置监听
+export * from './config-watch';
+
 // 代理管理
 export * from './proxy';
 

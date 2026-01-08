@@ -52,6 +52,16 @@ impl Tool {
         Self::all().into_iter().find(|t| t.id == id)
     }
 
+    /// 获取工具的所有配置文件列表（文件名列表）
+    pub fn config_files(&self) -> Vec<String> {
+        match self.id.as_str() {
+            "claude-code" => vec!["settings.json".to_string()],
+            "codex" => vec!["config.toml".to_string(), "auth.json".to_string()],
+            "gemini-cli" => vec!["settings.json".to_string(), ".env".to_string()],
+            _ => vec![self.config_file.clone()],
+        }
+    }
+
     /// Claude Code 定义
     pub fn claude_code() -> Tool {
         let home_dir = dirs::home_dir().expect("无法获取用户主目录");

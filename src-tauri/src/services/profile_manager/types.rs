@@ -203,6 +203,8 @@ impl ActiveStore {
             switched_at: Utc::now(),
             native_checksum: None,
             dirty: false,
+            native_snapshot: None,
+            last_synced_at: Utc::now(),
         };
 
         match tool_id {
@@ -240,6 +242,12 @@ pub struct ActiveProfile {
     pub native_checksum: Option<String>,
     #[serde(default)]
     pub dirty: bool,
+    /// 原生配置文件的完整快照（用于阻止变更时恢复）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_snapshot: Option<serde_json::Value>,
+    /// 最后同步时间
+    #[serde(default)]
+    pub last_synced_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
