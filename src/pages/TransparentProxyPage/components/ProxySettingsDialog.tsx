@@ -89,6 +89,8 @@ export function ProxySettingsDialog({
   const [ampAccessToken, setAmpAccessToken] = useState(config?.real_api_key ?? '');
   const [ampUserInfo, setAmpUserInfo] = useState<AmpUserInfo | null>(null);
   const [validatingToken, setValidatingToken] = useState(false);
+  // Tavily API Key 状态（仅 amp-code，用于本地搜索）
+  const [tavilyApiKey, setTavilyApiKey] = useState(config?.tavily_api_key ?? '');
 
   // 打开弹窗时重置表单状态
   useEffect(() => {
@@ -102,6 +104,8 @@ export function ProxySettingsDialog({
       // AMP Access Token
       setAmpAccessToken(config.real_api_key ?? '');
       setAmpUserInfo(null);
+      // Tavily API Key
+      setTavilyApiKey(config.tavily_api_key ?? '');
 
       // 如果有保存的 token，自动获取用户信息
       if (toolId === 'amp-code' && config.real_api_key) {
@@ -203,6 +207,7 @@ export function ProxySettingsDialog({
       if (toolId === 'amp-code') {
         updates.real_api_key = ampAccessToken || null;
         updates.real_base_url = ampAccessToken ? 'https://ampcode.com' : null;
+        updates.tavily_api_key = tavilyApiKey || null;
       }
       await onSave(updates);
       // 触发配置更新事件
@@ -354,6 +359,32 @@ export function ProxySettingsDialog({
                       </span>
                     </div>
                   )}
+
+                  {/* Tavily API Key（用于本地搜索） */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <Label htmlFor="tavily-key">Tavily API Key（可选）</Label>
+                    <Input
+                      id="tavily-key"
+                      type="password"
+                      placeholder="输入 Tavily API Key（用于本地搜索）"
+                      value={tavilyApiKey}
+                      onChange={(e) => setTavilyApiKey(e.target.value)}
+                      disabled={isRunning}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      用于本地处理 webSearch2 请求，不配置则使用 DuckDuckGo 搜索。可在{' '}
+                      <a
+                        href="https://tavily.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
+                        tavily.com
+                      </a>{' '}
+                      免费获取（每月 1000 次）
+                    </p>
+                  </div>
                 </div>
               )}
 

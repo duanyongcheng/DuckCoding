@@ -290,5 +290,9 @@ fn parse_old_config(value: &Value) -> Result<ToolProxyConfig> {
             .get("original_amp_secrets")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
+        tavily_api_key: obj
+            .get("tavily_api_key")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
     })
 }

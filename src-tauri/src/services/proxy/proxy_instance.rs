@@ -307,6 +307,26 @@ async fn handle_request_inner(
         .await
         .context("处理出站请求失败")?;
 
+    // 本地工具处理：dc-local:// 协议标记的请求直接返回 body
+    if processed.target_url.starts_with("dc-local://") {
+        tracing::info!(
+            tool_id = %tool_id,
+            local_tool = %processed.target_url,
+            "本地工具响应"
+        );
+        let mut response = Response::builder()
+            .status(StatusCode::OK)
+            .header("content-type", "application/json");
+        
+        for (name, value) in processed.headers.iter() {
+            response = response.header(name.as_str(), value.as_bytes());
+        }
+        
+        return Ok(response
+            .body(box_body(http_body_util::Full::new(processed.body)))
+            .unwrap());
+    }
+
     // 回环检测
     if loop_detector::is_proxy_loop(&processed.target_url, own_port) {
         return Ok(error_responses::proxy_loop_detected(tool_id));

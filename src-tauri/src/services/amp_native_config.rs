@@ -9,21 +9,21 @@ use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
-/// Amp 配置备份信息（完整文件内容）
+/// AMP Code 配置备份信息（完整文件内容）
 #[derive(Debug, Clone)]
 pub struct AmpConfigBackup {
     pub settings_json: Option<String>,
     pub secrets_json: Option<String>,
 }
 
-/// 获取 Amp settings.json 路径
+/// 获取 AMP Code settings.json 路径
 /// macOS/Linux: ~/.config/amp/settings.json
 fn amp_settings_path() -> Result<PathBuf> {
     let home = dirs::home_dir().ok_or_else(|| anyhow!("无法获取 home 目录"))?;
     Ok(home.join(".config").join("amp").join("settings.json"))
 }
 
-/// 获取 Amp secrets.json 路径
+/// 获取 AMP Code secrets.json 路径
 /// macOS/Linux: ~/.local/share/amp/secrets.json
 fn amp_secrets_path() -> Result<PathBuf> {
     let home = dirs::home_dir().ok_or_else(|| anyhow!("无法获取 home 目录"))?;
@@ -60,7 +60,7 @@ fn delete_file_if_exists(path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// 读取当前 Amp 配置（完整备份）
+/// 读取当前 AMP Code 配置（完整备份）
 pub fn backup_amp_config() -> Result<AmpConfigBackup> {
     let settings_path = amp_settings_path()?;
     let secrets_path = amp_secrets_path()?;
@@ -111,13 +111,13 @@ pub fn apply_proxy_config(proxy_url: &str, local_api_key: &str) -> Result<()> {
 
     tracing::info!(
         proxy_url = %proxy_url,
-        "已应用 Amp 代理配置"
+        "已应用 AMP Code 代理配置"
     );
 
     Ok(())
 }
 
-/// 完整还原 Amp 配置到原始状态
+/// 完整还原 AMP Code 配置到原始状态
 pub fn restore_amp_config(backup: &AmpConfigBackup) -> Result<()> {
     let settings_path = amp_settings_path()?;
     let secrets_path = amp_secrets_path()?;
@@ -140,7 +140,7 @@ pub fn restore_amp_config(backup: &AmpConfigBackup) -> Result<()> {
         tracing::debug!("已删除 secrets.json（原本不存在）");
     }
 
-    tracing::info!("已完整还原 Amp 配置");
+    tracing::info!("已完整还原 AMP Code 配置");
 
     Ok(())
 }

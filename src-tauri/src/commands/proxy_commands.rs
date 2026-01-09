@@ -225,16 +225,16 @@ async fn try_start_proxy_internal(
             "已切换到代理 Profile"
         );
     } else {
-        // amp-code：直接修改 Amp 原生配置文件
+        // amp-code：直接修改 AMP Code 原生配置文件
         let proxy_url = format!("http://127.0.0.1:{}", tool_config.port);
         let local_key = tool_config
             .local_api_key
             .as_ref()
             .ok_or_else(|| "透明代理保护密钥未设置".to_string())?;
 
-        // 1. 完整备份当前 Amp 配置
+        // 1. 完整备份当前 AMP Code 配置
         let backup = amp_native_config::backup_amp_config()
-            .map_err(|e| format!("备份 Amp 配置失败: {}", e))?;
+            .map_err(|e| format!("备份 AMP Code 配置失败: {}", e))?;
 
         tool_config.original_amp_settings = backup.settings_json;
         tool_config.original_amp_secrets = backup.secrets_json;
@@ -246,14 +246,14 @@ async fn try_start_proxy_internal(
 
         // 3. 应用代理配置
         amp_native_config::apply_proxy_config(&proxy_url, local_key)
-            .map_err(|e| format!("应用 Amp 代理配置失败: {}", e))?;
+            .map_err(|e| format!("应用 AMP Code 代理配置失败: {}", e))?;
 
         tracing::info!(
             tool_id = %tool_id,
             proxy_url = %proxy_url,
             has_original_settings = tool_config.original_amp_settings.is_some(),
             has_original_secrets = tool_config.original_amp_secrets.is_some(),
-            "已应用 Amp 代理配置"
+            "已应用 AMP Code 代理配置"
         );
     }
 
@@ -350,14 +350,14 @@ pub async fn stop_tool_proxy(
     // ========== 还原逻辑 ==========
 
     if tool_id == "amp-code" {
-        // amp-code：完整还原 Amp 原生配置文件
+        // amp-code：完整还原 AMP Code 原生配置文件
         let backup = amp_native_config::AmpConfigBackup {
             settings_json: tool_config.original_amp_settings.take(),
             secrets_json: tool_config.original_amp_secrets.take(),
         };
 
         amp_native_config::restore_amp_config(&backup)
-            .map_err(|e| format!("还原 Amp 配置失败: {}", e))?;
+            .map_err(|e| format!("还原 AMP Code 配置失败: {}", e))?;
 
         // 清空备份字段
         proxy_config_mgr
@@ -368,10 +368,10 @@ pub async fn stop_tool_proxy(
             tool_id = %tool_id,
             had_settings = backup.settings_json.is_some(),
             had_secrets = backup.secrets_json.is_some(),
-            "已完整还原 Amp 配置"
+            "已完整还原 AMP Code 配置"
         );
 
-        return Ok(format!("✅ {tool_id} 透明代理已停止\n已完整还原 Amp 配置"));
+        return Ok(format!("✅ {tool_id} 透明代理已停止\n已完整还原 AMP Code 配置"));
     }
 
     // 其他工具：Profile 还原逻辑

@@ -25,12 +25,15 @@ pub struct ToolProxyConfig {
     /// 启动代理前激活的 Profile 名称（用于关闭时还原）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_active_profile: Option<String>,
-    /// Amp 原始 settings.json 完整内容（用于关闭时还原）
+    /// AMP Code 原始 settings.json 完整内容（用于关闭时还原）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_amp_settings: Option<String>,
-    /// Amp 原始 secrets.json 完整内容（用于关闭时还原）
+    /// AMP Code 原始 secrets.json 完整内容（用于关闭时还原）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_amp_secrets: Option<String>,
+    /// Tavily API Key（用于本地搜索，可选，无则降级 DuckDuckGo）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tavily_api_key: Option<String>,
 }
 
 impl ToolProxyConfig {
@@ -49,6 +52,7 @@ impl ToolProxyConfig {
             original_active_profile: None,
             original_amp_settings: None,
             original_amp_secrets: None,
+            tavily_api_key: None,
         }
     }
 
