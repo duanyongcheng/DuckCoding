@@ -84,15 +84,12 @@ export async function getTokenStatsConfig(): Promise<TokenStatsConfig> {
  * @param config - 新配置（部分字段更新）
  */
 export async function updateTokenStatsConfig(config: Partial<TokenStatsConfig>): Promise<void> {
-  // 先获取完整配置
-  const globalConfig = await invoke<{ token_stats_config: TokenStatsConfig }>('get_global_config');
-  const updatedTokenConfig = { ...globalConfig.token_stats_config, ...config };
+  // 先获取当前完整配置
+  const currentConfig = await getTokenStatsConfig();
+  const updatedConfig = { ...currentConfig, ...config };
 
-  // 更新整个全局配置（传递 token_stats_config 字段）
-  return await invoke<void>('set_global_config', {
-    config: {
-      ...globalConfig,
-      token_stats_config: updatedTokenConfig,
-    },
+  // 调用后端专用命令（后端会原子性地读取-修改-保存）
+  return await invoke<void>('update_token_stats_config', {
+    config: updatedConfig,
   });
 }

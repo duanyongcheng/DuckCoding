@@ -4,23 +4,12 @@
 import { useEffect, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Database, Trash2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Database, RefreshCw, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeStats } from '../TransparentProxyPage/components/RealtimeStats';
 import { LogsTable } from '../TransparentProxyPage/components/LogsTable';
-import { cleanupTokenLogs, getTokenStatsSummary, getTokenStatsConfig } from '@/lib/tauri-commands';
+import { getTokenStatsSummary, getTokenStatsConfig } from '@/lib/tauri-commands';
 import type { DatabaseSummary, TokenStatsConfig, ToolType } from '@/types/token-stats';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
 interface TokenStatisticsPageProps {
   /** 会话ID（从导航传入，用于筛选日志） */
@@ -59,7 +48,7 @@ export default function TokenStatisticsPage({
   // 数据库摘要
   const [summary, setSummary] = useState<DatabaseSummary | null>(null);
   const [config, setConfig] = useState<TokenStatsConfig | null>(null);
-  const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // 加载数据库摘要和配置
   useEffect(() => {
@@ -79,30 +68,27 @@ export default function TokenStatisticsPage({
     loadData();
   }, []);
 
-  // 手动清理日志
-  const handleCleanup = async () => {
-    if (!config) return;
-
-    setIsCleaningUp(true);
+  // 刷新数据
+  const handleRefresh = async () => {
     try {
-      const deletedCount = await cleanupTokenLogs(config.retention_days, config.max_log_count);
+      const [summaryData, configData] = await Promise.all([
+        getTokenStatsSummary(),
+        getTokenStatsConfig(),
+      ]);
+      setSummary(summaryData);
+      setConfig(configData);
+      setRefreshKey((prev) => prev + 1);
       toast({
-        title: '清理成功',
-        description: `已清理 ${deletedCount} 条旧日志`,
+        title: '刷新成功',
+        description: '数据已更新',
       });
-
-      // 重新加载摘要
-      const newSummary = await getTokenStatsSummary();
-      setSummary(newSummary);
     } catch (error) {
-      console.error('Failed to cleanup logs:', error);
+      console.error('刷新数据失败:', error);
       toast({
-        title: '清理失败',
+        title: '刷新失败',
         description: String(error),
         variant: 'destructive',
       });
-    } finally {
-      setIsCleaningUp(false);
     }
   };
 
@@ -153,41 +139,11 @@ export default function TokenStatisticsPage({
             </div>
           )}
 
-          {/* 清理按钮 */}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" disabled={!config}>
-                <Trash2 className="h-4 w-4" />
-                清理旧日志
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-orange-500" />
-                  确认清理日志
-                </AlertDialogTitle>
-                <AlertDialogDescription className="space-y-2">
-                  <p>此操作将根据当前配置清理旧日志：</p>
-                  {config && (
-                    <ul className="list-disc list-inside space-y-1 text-sm">
-                      {config.retention_days && <li>保留最近 {config.retention_days} 天的日志</li>}
-                      {config.max_log_count && (
-                        <li>最多保留 {config.max_log_count.toLocaleString('zh-CN')} 条记录</li>
-                      )}
-                    </ul>
-                  )}
-                  <p className="text-destructive font-medium mt-2">此操作不可撤销！</p>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction onClick={handleCleanup} disabled={isCleaningUp}>
-                  {isCleaningUp ? '清理中...' : '确认清理'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {/* 刷新按钮 */}
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCw className="h-4 w-4" />
+            刷新
+          </Button>
         </div>
       </div>
 
@@ -195,7 +151,7 @@ export default function TokenStatisticsPage({
       {sessionId && toolType && <RealtimeStats sessionId={sessionId} toolType={toolType} />}
 
       {/* 历史日志表格 */}
-      <LogsTable initialToolType={toolType} initialSessionId={sessionId} />
+      <LogsTable key={refreshKey} initialToolType={toolType} initialSessionId={sessionId} />
 
       {/* 配置提示 */}
       {config && config.auto_cleanup_enabled && (

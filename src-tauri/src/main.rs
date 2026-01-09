@@ -245,6 +245,7 @@ fn main() {
         detect_tool_without_save,
         // 全局配置管理
         save_global_config,
+        update_token_stats_config,
         get_global_config,
         generate_api_key_for_tool,
         // 使用统计

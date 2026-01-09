@@ -51,6 +51,23 @@ pub async fn save_global_config(config: GlobalConfig) -> Result<(), String> {
     write_global_config(&config)
 }
 
+/// 更新 Token 统计配置（部分更新，避免竞态条件）
+#[tauri::command]
+pub async fn update_token_stats_config(
+    config: ::duckcoding::models::config::TokenStatsConfig,
+) -> Result<(), String> {
+    use ::duckcoding::utils::config::{read_global_config, write_global_config};
+
+    // 读取当前配置
+    let mut global_config = read_global_config()?.ok_or_else(|| "全局配置不存在".to_string())?;
+
+    // 仅更新 token_stats_config 字段
+    global_config.token_stats_config = config;
+
+    // 写回配置
+    write_global_config(&global_config)
+}
+
 #[tauri::command]
 pub async fn get_global_config() -> Result<Option<GlobalConfig>, String> {
     read_global_config()
