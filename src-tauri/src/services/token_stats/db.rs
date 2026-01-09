@@ -25,7 +25,7 @@ impl TokenStatsDb {
             .execute_raw("PRAGMA journal_mode=WAL")
             .context("Failed to enable WAL mode")?;
 
-        // 创建表
+        // 创建表（Schema v3 - 包含成本分析字段）
         manager
             .execute_raw(
                 "CREATE TABLE IF NOT EXISTS token_logs (
@@ -37,28 +37,38 @@ impl TokenStatsDb {
                     config_name TEXT NOT NULL,
                     model TEXT NOT NULL,
                     message_id TEXT,
+
+                    -- Token 数量
                     input_tokens INTEGER NOT NULL DEFAULT 0,
                     output_tokens INTEGER NOT NULL DEFAULT 0,
                     cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
                     cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+
+                    -- 请求状态
                     request_status TEXT NOT NULL DEFAULT 'success',
                     response_type TEXT NOT NULL DEFAULT 'unknown',
                     error_type TEXT,
                     error_detail TEXT,
+
+                    -- 各部分的价格（USD）
+                    input_price REAL,
+                    output_price REAL,
+                    cache_write_price REAL,
+                    cache_read_price REAL,
+
+                    -- 总成本（USD）
+                    total_cost REAL NOT NULL DEFAULT 0.0,
+
+                    -- 响应时间
+                    response_time_ms INTEGER,
+
+                    -- 价格模板 ID
+                    pricing_template_id TEXT,
+
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )",
             )
             .context("Failed to create token_logs table")?;
-
-        // 如果表已存在但缺少新字段，添加它们（ALTER TABLE）
-        let _ = manager.execute_raw(
-            "ALTER TABLE token_logs ADD COLUMN request_status TEXT NOT NULL DEFAULT 'success'",
-        );
-        let _ = manager.execute_raw(
-            "ALTER TABLE token_logs ADD COLUMN response_type TEXT NOT NULL DEFAULT 'unknown'",
-        );
-        let _ = manager.execute_raw("ALTER TABLE token_logs ADD COLUMN error_type TEXT");
-        let _ = manager.execute_raw("ALTER TABLE token_logs ADD COLUMN error_detail TEXT");
 
         // 创建索引
         manager
@@ -81,6 +91,35 @@ impl TokenStatsDb {
                  ON token_logs(tool_type)",
             )
             .context("Failed to create tool_type index")?;
+
+        // 添加成本分析相关索引（Phase 1）
+        manager
+            .execute_raw(
+                "CREATE INDEX IF NOT EXISTS idx_model
+                 ON token_logs(model)",
+            )
+            .context("Failed to create model index")?;
+
+        manager
+            .execute_raw(
+                "CREATE INDEX IF NOT EXISTS idx_total_cost
+                 ON token_logs(total_cost)",
+            )
+            .context("Failed to create total_cost index")?;
+
+        manager
+            .execute_raw(
+                "CREATE INDEX IF NOT EXISTS idx_timestamp_cost
+                 ON token_logs(timestamp, total_cost)",
+            )
+            .context("Failed to create timestamp_cost index")?;
+
+        manager
+            .execute_raw(
+                "CREATE INDEX IF NOT EXISTS idx_tool_model
+                 ON token_logs(tool_type, model)",
+            )
+            .context("Failed to create tool_model index")?;
 
         Ok(())
     }
@@ -107,6 +146,19 @@ impl TokenStatsDb {
             log.response_type.clone(),
             log.error_type.clone().unwrap_or_default(),
             log.error_detail.clone().unwrap_or_default(),
+            log.response_time_ms
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            log.input_price.map(|v| v.to_string()).unwrap_or_default(),
+            log.output_price.map(|v| v.to_string()).unwrap_or_default(),
+            log.cache_write_price
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            log.cache_read_price
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            log.total_cost.to_string(),
+            log.pricing_template_id.clone().unwrap_or_default(),
         ];
 
         let params_refs: Vec<&str> = params.iter().map(|s| s.as_str()).collect();
@@ -117,8 +169,10 @@ impl TokenStatsDb {
                     tool_type, timestamp, client_ip, session_id, config_name,
                     model, message_id, input_tokens, output_tokens,
                     cache_creation_tokens, cache_read_tokens,
-                    request_status, response_type, error_type, error_detail
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    request_status, response_type, error_type, error_detail,
+                    response_time_ms, input_price, output_price, cache_write_price, cache_read_price,
+                    total_cost, pricing_template_id
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                 &params_refs,
             )
             .context("Failed to insert token log")?;
@@ -165,6 +219,19 @@ impl TokenStatsDb {
             log.response_type.clone(),
             log.error_type.clone().unwrap_or_default(),
             log.error_detail.clone().unwrap_or_default(),
+            log.response_time_ms
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            log.input_price.map(|v| v.to_string()).unwrap_or_default(),
+            log.output_price.map(|v| v.to_string()).unwrap_or_default(),
+            log.cache_write_price
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            log.cache_read_price
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
+            log.total_cost.to_string(),
+            log.pricing_template_id.clone().unwrap_or_default(),
         ];
 
         let params_refs: Vec<&str> = params.iter().map(|s| s.as_str()).collect();
@@ -175,8 +242,10 @@ impl TokenStatsDb {
                     tool_type, timestamp, client_ip, session_id, config_name,
                     model, message_id, input_tokens, output_tokens,
                     cache_creation_tokens, cache_read_tokens,
-                    request_status, response_type, error_type, error_detail
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    request_status, response_type, error_type, error_detail,
+                    response_time_ms, input_price, output_price, cache_write_price, cache_read_price,
+                    total_cost, pricing_template_id
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                 &params_refs,
             )
             .context("Failed to insert token log")?;
@@ -287,7 +356,9 @@ impl TokenStatsDb {
             "SELECT id, tool_type, timestamp, client_ip, session_id, config_name,
                     model, message_id, input_tokens, output_tokens,
                     cache_creation_tokens, cache_read_tokens,
-                    request_status, response_type, error_type, error_detail
+                    request_status, response_type, error_type, error_detail,
+                    response_time_ms, input_price, output_price, cache_write_price, cache_read_price,
+                    total_cost, pricing_template_id
              FROM token_logs {}
              ORDER BY timestamp DESC
              LIMIT ? OFFSET ?",
@@ -365,6 +436,17 @@ impl TokenStatsDb {
                     error_detail: row
                         .values
                         .get(15)
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    response_time_ms: row.values.get(16).and_then(|v| v.as_i64()),
+                    input_price: row.values.get(17).and_then(|v| v.as_f64()),
+                    output_price: row.values.get(18).and_then(|v| v.as_f64()),
+                    cache_write_price: row.values.get(19).and_then(|v| v.as_f64()),
+                    cache_read_price: row.values.get(20).and_then(|v| v.as_f64()),
+                    total_cost: row.values.get(21).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                    pricing_template_id: row
+                        .values
+                        .get(22)
                         .and_then(|v| v.as_str())
                         .map(String::from),
                 })
@@ -535,6 +617,13 @@ mod tests {
             "json".to_string(),
             None,
             None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.0,
+            None,
         );
 
         let id = db.insert_log(&log).unwrap();
@@ -568,6 +657,13 @@ mod tests {
                 "success".to_string(),
                 "sse".to_string(),
                 None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                0.0,
                 None,
             );
             db.insert_log(&log).unwrap();
@@ -615,6 +711,13 @@ mod tests {
             "json".to_string(),
             None,
             None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.0,
+            None,
         );
         db.insert_log(&old_log).unwrap();
 
@@ -633,6 +736,13 @@ mod tests {
             "success".to_string(),
             "json".to_string(),
             None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.0,
             None,
         );
         db.insert_log(&new_log).unwrap();

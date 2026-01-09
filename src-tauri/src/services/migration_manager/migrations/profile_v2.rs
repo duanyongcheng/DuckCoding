@@ -218,6 +218,7 @@ impl ProfileV2Migration {
                         raw_settings: Some(settings_value),
                         raw_config_json: None,
                         source: ProfileSource::Custom,
+                        pricing_template_id: None,
                     };
                     profiles.insert(profile_name.clone(), profile);
                     tracing::info!("已从原始 Claude Code 配置迁移 Profile: {}", profile_name);
@@ -323,6 +324,7 @@ impl ProfileV2Migration {
                     raw_config_toml,
                     raw_auth_json: Some(auth_data),
                     source: ProfileSource::Custom,
+                    pricing_template_id: None,
                 };
                 profiles.insert(profile_name.clone(), profile);
                 tracing::info!("已从原始 Codex 配置迁移 Profile: {}", profile_name);
@@ -398,6 +400,7 @@ impl ProfileV2Migration {
                     raw_settings: None,
                     raw_env,
                     source: ProfileSource::Custom,
+                    pricing_template_id: None,
                 };
                 profiles.insert(profile_name.clone(), profile);
                 tracing::info!("已从原始 Gemini CLI 配置迁移 Profile: {}", profile_name);
@@ -495,6 +498,7 @@ impl ProfileV2Migration {
                                 raw_settings,
                                 raw_config_json,
                                 source: ProfileSource::Custom,
+                                pricing_template_id: None,
                             },
                             CodexProfile::default_placeholder(),
                             GeminiProfile::default_placeholder(),
@@ -533,6 +537,7 @@ impl ProfileV2Migration {
                                 raw_config_toml,
                                 raw_auth_json,
                                 source: ProfileSource::Custom,
+                                pricing_template_id: None,
                             },
                             GeminiProfile::default_placeholder(),
                         ))
@@ -570,6 +575,7 @@ impl ProfileV2Migration {
                                 raw_settings,
                                 raw_env,
                                 source: ProfileSource::Custom,
+                                pricing_template_id: None,
                             },
                         ))
                     }
@@ -866,6 +872,7 @@ impl ClaudeProfile {
             raw_settings: None,
             raw_config_json: None,
             source: ProfileSource::Custom,
+            pricing_template_id: None,
         }
     }
 }
@@ -881,6 +888,7 @@ impl CodexProfile {
             raw_config_toml: None,
             raw_auth_json: None,
             source: ProfileSource::Custom,
+            pricing_template_id: None,
         }
     }
 }
@@ -896,6 +904,7 @@ impl GeminiProfile {
             raw_settings: None,
             raw_env: None,
             source: ProfileSource::Custom,
+            pricing_template_id: None,
         }
     }
 }

@@ -118,6 +118,7 @@ pub fn parse_proxy_session(row: &QueryRow) -> Result<ProxySession> {
         request_count: get_i32(10).context("request_count")?,
         created_at: get_i64(11).context("created_at")?,
         updated_at: get_i64(12).context("updated_at")?,
+        pricing_template_id: get_optional_string(13),
     })
 }
 

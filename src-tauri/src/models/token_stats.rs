@@ -54,6 +54,34 @@ pub struct TokenLog {
     /// 错误详情（成功时为None）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_detail: Option<String>,
+
+    /// 响应时间（毫秒）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_time_ms: Option<i64>,
+
+    /// 输入部分价格（USD）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_price: Option<f64>,
+
+    /// 输出部分价格（USD）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_price: Option<f64>,
+
+    /// 缓存写入部分价格（USD）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_price: Option<f64>,
+
+    /// 缓存读取部分价格（USD）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read_price: Option<f64>,
+
+    /// 总成本（USD）
+    #[serde(default)]
+    pub total_cost: f64,
+
+    /// 使用的价格模板ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 impl TokenLog {
@@ -75,6 +103,13 @@ impl TokenLog {
         response_type: String,
         error_type: Option<String>,
         error_detail: Option<String>,
+        response_time_ms: Option<i64>,
+        input_price: Option<f64>,
+        output_price: Option<f64>,
+        cache_write_price: Option<f64>,
+        cache_read_price: Option<f64>,
+        total_cost: f64,
+        pricing_template_id: Option<String>,
     ) -> Self {
         Self {
             id: None,
@@ -93,6 +128,13 @@ impl TokenLog {
             response_type,
             error_type,
             error_detail,
+            response_time_ms,
+            input_price,
+            output_price,
+            cache_write_price,
+            cache_read_price,
+            total_cost,
+            pricing_template_id,
         }
     }
 
@@ -231,12 +273,25 @@ mod tests {
             "sse".to_string(),
             None,
             None,
+            Some(1500),
+            Some(0.003),
+            Some(0.0075),
+            Some(0.000375),
+            Some(0.00006),
+            0.011235,
+            Some("claude_official_2025_01".to_string()),
         );
 
         assert_eq!(log.tool_type, "claude_code");
         assert_eq!(log.total_tokens(), 1500);
         assert_eq!(log.total_cache_tokens(), 300);
         assert!(log.is_success());
+        assert_eq!(log.response_time_ms, Some(1500));
+        assert_eq!(log.total_cost, 0.011235);
+        assert_eq!(
+            log.pricing_template_id,
+            Some("claude_official_2025_01".to_string())
+        );
     }
 
     #[test]

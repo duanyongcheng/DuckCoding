@@ -47,6 +47,9 @@ pub struct ClaudeProfile {
     pub raw_settings: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub raw_config_json: Option<serde_json::Value>,
+    /// 价格模板 ID（用于成本计算）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 /// Codex Profile
@@ -64,6 +67,9 @@ pub struct CodexProfile {
     pub raw_config_toml: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub raw_auth_json: Option<serde_json::Value>,
+    /// 价格模板 ID（用于成本计算）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 fn default_codex_wire_api() -> String {
@@ -85,6 +91,9 @@ pub struct GeminiProfile {
     pub raw_settings: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub raw_env: Option<String>,
+    /// 价格模板 ID（用于成本计算）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 // ==================== profiles.json 结构 ====================
@@ -274,6 +283,9 @@ pub struct ProfileDescriptor {
     pub provider: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// 价格模板 ID（用于成本计算）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 impl ProfileDescriptor {
@@ -301,6 +313,7 @@ impl ProfileDescriptor {
             switched_at,
             provider: None,
             model: None,
+            pricing_template_id: profile.pricing_template_id.clone(),
         }
     }
 
@@ -328,6 +341,7 @@ impl ProfileDescriptor {
             switched_at,
             provider: Some(profile.wire_api.clone()), // 前端仍使用 provider 字段名
             model: None,
+            pricing_template_id: profile.pricing_template_id.clone(),
         }
     }
 
@@ -355,6 +369,7 @@ impl ProfileDescriptor {
             switched_at,
             provider: None,
             model: profile.model.clone(),
+            pricing_template_id: profile.pricing_template_id.clone(),
         }
     }
 }

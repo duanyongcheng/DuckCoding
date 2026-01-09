@@ -17,6 +17,7 @@ pub mod config;
 pub mod dashboard_manager; // 仪表板状态管理
 pub mod migration_manager;
 pub mod new_api; // NEW API 客户端
+pub mod pricing; // 价格配置管理
 pub mod profile_manager; // Profile管理（v2.1）
 pub mod provider_manager; // 供应商配置管理
 pub mod proxy;

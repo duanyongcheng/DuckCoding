@@ -196,6 +196,9 @@ pub struct ToolProxyConfig {
     /// 启动代理前激活的 Profile 名称（用于关闭时还原）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub original_active_profile: Option<String>,
+    /// 价格模板 ID（用于成本计算）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 impl Default for ToolProxyConfig {
@@ -212,6 +215,7 @@ impl Default for ToolProxyConfig {
             session_endpoint_config_enabled: false,
             auto_start: false,
             original_active_profile: None,
+            pricing_template_id: None,
         }
     }
 }
@@ -297,6 +301,7 @@ fn default_proxy_configs() -> HashMap<String, ToolProxyConfig> {
             session_endpoint_config_enabled: false,
             auto_start: false,
             original_active_profile: None,
+            pricing_template_id: None,
         },
     );
 
@@ -314,6 +319,7 @@ fn default_proxy_configs() -> HashMap<String, ToolProxyConfig> {
             session_endpoint_config_enabled: false,
             auto_start: false,
             original_active_profile: None,
+            pricing_template_id: None,
         },
     );
 
@@ -331,6 +337,7 @@ fn default_proxy_configs() -> HashMap<String, ToolProxyConfig> {
             session_endpoint_config_enabled: false,
             auto_start: false,
             original_active_profile: None,
+            pricing_template_id: None,
         },
     );
 
@@ -364,6 +371,7 @@ impl GlobalConfig {
                 session_endpoint_config_enabled: false,
                 auto_start: false,
                 original_active_profile: None,
+                pricing_template_id: None,
             });
     }
 

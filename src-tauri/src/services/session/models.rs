@@ -31,6 +31,9 @@ pub struct ProxySession {
     pub created_at: i64,
     /// 更新时间（Unix 时间戳，秒）
     pub updated_at: i64,
+    /// 价格模板 ID（用于成本计算）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing_template_id: Option<String>,
 }
 
 /// 会话事件（异步队列传递）

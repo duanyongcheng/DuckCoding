@@ -139,6 +139,7 @@ pub async fn import_token_as_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_config_json: None,
+                pricing_template_id: None,
             };
             store.claude_code.insert(profile_name.clone(), profile);
         }
@@ -152,6 +153,7 @@ pub async fn import_token_as_profile(
                 updated_at: Utc::now(),
                 raw_config_toml: None,
                 raw_auth_json: None,
+                pricing_template_id: None,
             };
             store.codex.insert(profile_name.clone(), profile);
         }
@@ -165,6 +167,7 @@ pub async fn import_token_as_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_env: None,
+                pricing_template_id: None,
             };
             store.gemini_cli.insert(profile_name.clone(), profile);
         }
@@ -211,6 +214,7 @@ pub async fn create_custom_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_config_json: None,
+                pricing_template_id: None,
             };
             store.claude_code.insert(profile_name.clone(), profile);
         }
@@ -232,6 +236,7 @@ pub async fn create_custom_profile(
                 updated_at: Utc::now(),
                 raw_config_toml: None,
                 raw_auth_json: None,
+                pricing_template_id: None,
             };
             store.codex.insert(profile_name.clone(), profile);
         }
@@ -252,6 +257,7 @@ pub async fn create_custom_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_env: None,
+                pricing_template_id: None,
             };
             store.gemini_cli.insert(profile_name.clone(), profile);
         }

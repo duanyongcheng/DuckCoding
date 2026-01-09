@@ -208,6 +208,13 @@ impl TokenStatsManager {
             response_type.to_string(),
             None,
             None,
+            None, // TODO: Phase 3 will add response_time_ms
+            None, // TODO: Phase 3 will add input_price
+            None, // TODO: Phase 3 will add output_price
+            None, // TODO: Phase 3 will add cache_write_price
+            None, // TODO: Phase 3 will add cache_read_price
+            0.0,  // TODO: Phase 3 will add total_cost
+            None, // TODO: Phase 3 will add pricing_template_id
         );
 
         // 发送到批量写入队列（异步，不阻塞）
@@ -269,6 +276,13 @@ impl TokenStatsManager {
             response_type.to_string(),
             Some(error_type.to_string()),
             Some(error_detail.to_string()),
+            None, // TODO: Phase 3 will add response_time_ms
+            None, // TODO: Phase 3 will add input_price
+            None, // TODO: Phase 3 will add output_price
+            None, // TODO: Phase 3 will add cache_write_price
+            None, // TODO: Phase 3 will add cache_read_price
+            0.0,  // TODO: Phase 3 will add total_cost
+            None, // TODO: Phase 3 will add pricing_template_id
         );
 
         // 发送到批量写入队列
@@ -459,6 +473,13 @@ mod tests {
             "success".to_string(),
             "json".to_string(),
             None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0.0,
             None,
         );
         manager.db.insert_log(&log).unwrap();

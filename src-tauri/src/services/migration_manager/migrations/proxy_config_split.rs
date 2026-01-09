@@ -282,5 +282,9 @@ fn parse_old_config(value: &Value) -> Result<ToolProxyConfig> {
             .get("original_active_profile")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
+        pricing_template_id: obj
+            .get("pricing_template_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
     })
 }

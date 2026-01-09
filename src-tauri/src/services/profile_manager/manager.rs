@@ -122,6 +122,7 @@ impl ProfileManager {
                 raw_settings: None,
                 raw_config_json: None,
                 source: ProfileSource::Custom,
+                pricing_template_id: None,
             }
         };
 
@@ -208,6 +209,7 @@ impl ProfileManager {
                 raw_config_toml: None,
                 raw_auth_json: None,
                 source: ProfileSource::Custom,
+                pricing_template_id: None,
             }
         };
 
@@ -296,6 +298,7 @@ impl ProfileManager {
                 raw_settings: None,
                 raw_env: None,
                 source: ProfileSource::Custom,
+                pricing_template_id: None,
             }
         };
 
@@ -529,6 +532,7 @@ impl ProfileManager {
                 raw_settings: None,
                 raw_config_json: None,
                 source: ProfileSource::Custom,
+                pricing_template_id: None,
             }
         };
 
@@ -577,6 +581,7 @@ impl ProfileManager {
                 raw_config_toml: None,
                 raw_auth_json: None,
                 source: ProfileSource::Custom,
+                pricing_template_id: None,
             }
         };
 
@@ -627,6 +632,7 @@ impl ProfileManager {
                 raw_settings: None,
                 raw_env: None,
                 source: ProfileSource::Custom,
+                pricing_template_id: None,
             }
         };
 
