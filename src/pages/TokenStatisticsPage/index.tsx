@@ -4,12 +4,23 @@
 import { useEffect, useState } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Database, RefreshCw, AlertCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ArrowLeft, Database, RefreshCw, AlertCircle, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { RealtimeStats } from '../TransparentProxyPage/components/RealtimeStats';
 import { LogsTable } from '../TransparentProxyPage/components/LogsTable';
 import { getTokenStatsSummary, getTokenStatsConfig } from '@/lib/tauri-commands';
+import { queryTokenTrends, queryCostSummary } from '@/lib/tauri-commands/analytics';
+import { Dashboard } from './components/Dashboard';
+import { TrendsChart } from './components/TrendsChart';
 import type { DatabaseSummary, TokenStatsConfig, ToolType } from '@/types/token-stats';
+import type { TrendDataPoint, CostSummary, TimeRange } from '@/types/analytics';
 
 interface TokenStatisticsPageProps {
   /** 会话ID（从导航传入，用于筛选日志） */
@@ -50,6 +61,13 @@ export default function TokenStatisticsPage({
   const [config, setConfig] = useState<TokenStatsConfig | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // 分析数据
+  const [trendsData, setTrendsData] = useState<TrendDataPoint[]>([]);
+  const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
+  const [timeRange, setTimeRange] = useState<TimeRange>('day'); // 查询时间范围
+  const [granularity, setGranularity] = useState<TimeGranularity>('hour'); // 数据分组粒度
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
   // 加载数据库摘要和配置
   useEffect(() => {
     const loadData = async () => {
@@ -67,6 +85,41 @@ export default function TokenStatisticsPage({
 
     loadData();
   }, []);
+
+  // 加载分析数据
+  useEffect(() => {
+    const loadAnalyticsData = async () => {
+      setAnalyticsLoading(true);
+      try {
+        const endTime = Date.now();
+        const startTime = getStartTime(endTime, timeRange);
+
+        const [trends, summary] = await Promise.all([
+          queryTokenTrends({
+            start_time: startTime,
+            end_time: endTime,
+            tool_type: toolType,
+            granularity: granularity, // 使用独立的粒度状态
+          }),
+          queryCostSummary(startTime, endTime, toolType),
+        ]);
+
+        setTrendsData(trends);
+        setCostSummary(summary);
+      } catch (error) {
+        console.error('Failed to load analytics data:', error);
+        toast({
+          title: '加载失败',
+          description: '无法加载分析数据',
+          variant: 'destructive',
+        });
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    loadAnalyticsData();
+  }, [timeRange, granularity, toolType, toast]); // 监听时间范围和粒度的变化
 
   // 刷新数据
   const handleRefresh = async () => {
@@ -104,6 +157,32 @@ export default function TokenStatisticsPage({
     });
   };
 
+  // 根据时间范围计算起始时间
+  const getStartTime = (endTime: number, range: TimeRange): number => {
+    const msPerMinute = 60 * 1000;
+    const msPerHour = 60 * msPerMinute;
+    const msPerDay = 24 * msPerHour;
+
+    switch (range) {
+      case 'fifteen_minutes':
+        return endTime - 15 * msPerMinute; // 最近15分钟
+      case 'thirty_minutes':
+        return endTime - 30 * msPerMinute; // 最近30分钟
+      case 'hour':
+        return endTime - msPerHour; // 最近1小时
+      case 'twelve_hours':
+        return endTime - 12 * msPerHour; // 最近12小时
+      case 'day':
+        return endTime - msPerDay; // 最近1天
+      case 'week':
+        return endTime - 7 * msPerDay; // 最近7天
+      case 'month':
+        return endTime - 30 * msPerDay; // 最近30天
+      default:
+        return endTime - msPerDay;
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* 页头 */}
@@ -139,6 +218,42 @@ export default function TokenStatisticsPage({
             </div>
           )}
 
+          {/* 时间范围选择器 */}
+          <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+            <SelectTrigger className="w-36">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="查询范围" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fifteen_minutes">最近15分钟</SelectItem>
+              <SelectItem value="thirty_minutes">最近30分钟</SelectItem>
+              <SelectItem value="hour">最近1小时</SelectItem>
+              <SelectItem value="twelve_hours">最近12小时</SelectItem>
+              <SelectItem value="day">最近1天</SelectItem>
+              <SelectItem value="week">最近7天</SelectItem>
+              <SelectItem value="month">最近30天</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* 时间粒度选择器 */}
+          <Select
+            value={granularity}
+            onValueChange={(value) => setGranularity(value as TimeGranularity)}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="数据粒度" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fifteen_minutes">15分钟</SelectItem>
+              <SelectItem value="thirty_minutes">30分钟</SelectItem>
+              <SelectItem value="hour">1小时</SelectItem>
+              <SelectItem value="twelve_hours">12小时</SelectItem>
+              <SelectItem value="day">1天</SelectItem>
+              <SelectItem value="week">1周</SelectItem>
+              <SelectItem value="month">1月</SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* 刷新按钮 */}
           <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4" />
@@ -149,6 +264,87 @@ export default function TokenStatisticsPage({
 
       {/* 实时统计（如果提供了 sessionId 和 toolType） */}
       {sessionId && toolType && <RealtimeStats sessionId={sessionId} toolType={toolType} />}
+
+      {/* 仪表盘 - 关键指标 */}
+      {costSummary && <Dashboard summary={costSummary} loading={analyticsLoading} />}
+
+      {/* 趋势图表 */}
+      {trendsData.length > 0 && (
+        <>
+          {/* 成本趋势 */}
+          <TrendsChart
+            data={trendsData}
+            title="成本趋势"
+            dataKeys={[
+              {
+                key: 'total_cost',
+                name: '总成本',
+                color: '#10b981',
+                formatter: (value) => `$${value.toFixed(4)}`,
+              },
+              {
+                key: 'input_price',
+                name: '输入成本',
+                color: '#3b82f6',
+                formatter: (value) => `$${value.toFixed(4)}`,
+              },
+              {
+                key: 'output_price',
+                name: '输出成本',
+                color: '#f59e0b',
+                formatter: (value) => `$${value.toFixed(4)}`,
+              },
+            ]}
+            yAxisLabel="成本 (USD)"
+            height={300}
+          />
+
+          {/* Token 使用趋势 */}
+          <TrendsChart
+            data={trendsData}
+            title="Token 使用趋势"
+            dataKeys={[
+              {
+                key: 'input_tokens',
+                name: '输入 Tokens',
+                color: '#3b82f6',
+                formatter: (value) => value.toLocaleString(),
+              },
+              {
+                key: 'output_tokens',
+                name: '输出 Tokens',
+                color: '#f59e0b',
+                formatter: (value) => value.toLocaleString(),
+              },
+              {
+                key: 'cache_read_tokens',
+                name: '缓存读取 Tokens',
+                color: '#8b5cf6',
+                formatter: (value) => value.toLocaleString(),
+              },
+            ]}
+            yAxisLabel="Token 数量"
+            height={300}
+          />
+
+          {/* 响应时间趋势 */}
+          <TrendsChart
+            data={trendsData}
+            title="平均响应时间趋势"
+            dataKeys={[
+              {
+                key: 'avg_response_time',
+                name: '平均响应时间',
+                color: '#8b5cf6',
+                formatter: (value) =>
+                  value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`,
+              },
+            ]}
+            yAxisLabel="响应时间 (ms)"
+            height={300}
+          />
+        </>
+      )}
 
       {/* 历史日志表格 */}
       <LogsTable key={refreshKey} initialToolType={toolType} initialSessionId={sessionId} />
