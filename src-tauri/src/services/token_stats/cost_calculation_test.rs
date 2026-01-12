@@ -11,7 +11,7 @@ mod tests {
     #[test]
     fn test_cost_calculation_with_claude_3_5_sonnet() {
         // 测试 Claude 3.5 Sonnet 20241022 版本的成本计算
-        let model = "claude-3-5-sonnet-20241022";
+        let model = "claude-sonnet-4-5-20250929";
         let input_tokens = 100;
         let output_tokens = 50;
         let cache_creation_tokens = 10;
@@ -33,7 +33,7 @@ mod tests {
         let breakdown = result.unwrap();
 
         // 验证使用了正确的模板
-        assert_eq!(breakdown.template_id, "claude_official_2025_01");
+        assert_eq!(breakdown.template_id, "builtin_claude");
 
         // 验证成本计算正确（Claude 3.5 Sonnet: $3/1M input, $15/1M output）
         // input: 100 * 3.0 / 1,000,000 = 0.0003
@@ -105,7 +105,7 @@ mod tests {
 
         let response_json = json!({
             "id": "msg_test_123",
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5-20250929",
             "usage": {
                 "input_tokens": 100,
                 "output_tokens": 50,
@@ -132,7 +132,7 @@ mod tests {
 
         let response_json = json!({
             "id": "msg_end_to_end",
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5-20250929",
             "usage": {
                 "input_tokens": 1000,
                 "output_tokens": 500,
@@ -147,7 +147,7 @@ mod tests {
         // 步骤2: 计算成本
         let result = PRICING_MANAGER.calculate_cost(
             None,
-            "claude-3-5-sonnet-20241022",
+            "claude-sonnet-4-5-20250929",
             token_info.input_tokens,
             token_info.output_tokens,
             token_info.cache_creation_tokens,

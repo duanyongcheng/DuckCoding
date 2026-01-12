@@ -42,6 +42,7 @@ impl RequestProcessor for ClaudeHeadersProcessor {
                     // 查询会话配置
                     if let Ok(Some((
                         config_name,
+                        _custom_profile_name,
                         session_url,
                         session_api_key,
                         _session_pricing_template_id,

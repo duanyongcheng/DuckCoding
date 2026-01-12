@@ -1,9 +1,9 @@
 use crate::models::pricing::{ModelPrice, PricingTemplate};
 use std::collections::HashMap;
 
-/// 生成 Claude 官方价格模板（2025年1月）
+/// 生成内置 Claude 价格模板
 ///
-/// 包含 7 个 Claude 模型的官方定价
+/// 包含 8 个 Claude 模型的官方定价
 pub fn builtin_claude_official_template() -> PricingTemplate {
     let mut custom_models = HashMap::new();
 
@@ -144,8 +144,8 @@ pub fn builtin_claude_official_template() -> PricingTemplate {
     );
 
     PricingTemplate::new(
-        "claude_official_2025_01".to_string(),
-        "Claude 官方价格 (2025年1月)".to_string(),
+        "builtin_claude".to_string(),
+        "内置Claude价格".to_string(),
         "Anthropic 官方定价，包含 8 个 Claude 模型".to_string(),
         "1.0".to_string(),
         vec![], // 内置模板不使用继承
@@ -164,7 +164,7 @@ mod tests {
         let template = builtin_claude_official_template();
 
         // 验证基本信息
-        assert_eq!(template.id, "claude_official_2025_01");
+        assert_eq!(template.id, "builtin_claude");
         assert!(template.is_default_preset);
         assert!(template.is_full_custom());
 
@@ -178,7 +178,7 @@ mod tests {
         assert_eq!(opus_4_5.output_price_per_1m, 25.0);
         assert_eq!(opus_4_5.cache_write_price_per_1m, Some(6.25));
         assert_eq!(opus_4_5.cache_read_price_per_1m, Some(0.5));
-        assert_eq!(opus_4_5.aliases.len(), 3);
+        assert_eq!(opus_4_5.aliases.len(), 4);
 
         // 验证 Sonnet 4.5 价格
         let sonnet_4_5 = template.custom_models.get("claude-sonnet-4.5").unwrap();
@@ -195,7 +195,7 @@ mod tests {
         // assert_eq!(sonnet_3_5.cache_read_price_per_1m, Some(0.3));
         // assert!(sonnet_3_5
         //     .aliases
-        //     .contains(&"claude-3-5-sonnet-20241022".to_string()));
+        //     .contains(&"claude-sonnet-4-5-20250929".to_string()));
 
         // 验证 Haiku 3.5 价格
         let haiku_3_5 = template.custom_models.get("claude-haiku-3.5").unwrap();

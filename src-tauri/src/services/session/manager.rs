@@ -333,11 +333,11 @@ impl SessionManager {
     }
 
     /// 获取会话配置（公共 API，用于请求处理）
-    /// 返回 (config_name, url, api_key, pricing_template_id)
+    /// 返回 (config_name, custom_profile_name, url, api_key, pricing_template_id)
     pub fn get_session_config(&self, session_id: &str) -> Result<Option<SessionConfig>> {
         let db = self.manager.sqlite(&self.db_path)?;
         let rows = db.query(
-            "SELECT config_name, url, api_key, pricing_template_id FROM claude_proxy_sessions WHERE session_id = ?",
+            "SELECT config_name, custom_profile_name, url, api_key, pricing_template_id FROM claude_proxy_sessions WHERE session_id = ?",
             &[session_id],
         )?;
 
@@ -356,19 +356,21 @@ impl SessionManager {
         custom_profile_name: Option<&str>,
         url: &str,
         api_key: &str,
+        pricing_template_id: Option<&str>, // Phase 6: 价格模板
     ) -> Result<()> {
         let db = self.manager.sqlite(&self.db_path)?;
         let now = chrono::Utc::now().timestamp();
 
         let updated = db.execute(
             "UPDATE claude_proxy_sessions
-             SET config_name = ?, custom_profile_name = ?, url = ?, api_key = ?, updated_at = ?
+             SET config_name = ?, custom_profile_name = ?, url = ?, api_key = ?, pricing_template_id = ?, updated_at = ?
              WHERE session_id = ?",
             &[
                 config_name,
                 custom_profile_name.unwrap_or(""),
                 url,
                 api_key,
+                pricing_template_id.unwrap_or(""),
                 &now.to_string(),
                 session_id,
             ],
@@ -535,6 +537,7 @@ mod tests {
                 Some("my-profile"),
                 "https://api.test.com",
                 "sk-test",
+                None, // pricing_template_id
             )
             .unwrap();
 

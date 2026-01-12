@@ -33,6 +33,7 @@ pub async fn update_session_config(
     custom_profile_name: Option<String>,
     url: String,
     api_key: String,
+    pricing_template_id: Option<String>, // Phase 6: 价格模板
 ) -> AppResult<()> {
     Ok(SESSION_MANAGER.update_session_config(
         &session_id,
@@ -40,6 +41,7 @@ pub async fn update_session_config(
         custom_profile_name.as_deref(),
         &url,
         &api_key,
+        pricing_template_id.as_deref(),
     )?)
 }
 

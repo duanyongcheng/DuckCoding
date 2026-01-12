@@ -99,6 +99,7 @@ export default function ProfileManagementPage() {
       base_url: editingProfile.base_url,
       wire_api: editingProfile.wire_api || editingProfile.provider, // 兼容两个字段名
       model: editingProfile.model,
+      pricing_template_id: editingProfile.pricing_template_id, // Phase 6: 价格模板
     };
   };
 

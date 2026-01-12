@@ -1,5 +1,5 @@
 use crate::data::DataManager;
-use crate::models::pricing::{DefaultTemplatesConfig, InheritedModel, ModelPrice, PricingTemplate};
+use crate::models::pricing::{DefaultTemplatesConfig, ModelPrice, PricingTemplate};
 use crate::services::pricing::builtin::builtin_claude_official_template;
 use crate::utils::precision::price_precision;
 use anyhow::{anyhow, Context, Result};
@@ -7,6 +7,9 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
+
+#[cfg(test)]
+use crate::models::pricing::InheritedModel;
 
 /// 成本分解结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,15 +108,9 @@ impl PricingManager {
         // 初始化默认模板配置（如果不存在）
         if !self.default_templates_path.exists() {
             let mut config = DefaultTemplatesConfig::new();
-            config.set_default(
-                "claude-code".to_string(),
-                "claude_official_2025_01".to_string(),
-            );
-            config.set_default("codex".to_string(), "claude_official_2025_01".to_string());
-            config.set_default(
-                "gemini-cli".to_string(),
-                "claude_official_2025_01".to_string(),
-            );
+            config.set_default("claude-code".to_string(), "builtin_claude".to_string());
+            config.set_default("codex".to_string(), "builtin_claude".to_string());
+            config.set_default("gemini-cli".to_string(), "builtin_claude".to_string());
 
             let value = serde_json::to_value(&config)
                 .context("Failed to serialize default templates config")?;
@@ -316,10 +313,35 @@ impl PricingManager {
             }
         }
 
-        // 3. 查找继承配置（每个模型独立配置）
+        // 3. 查找继承配置（支持别名匹配）
         for inherited in &template.inherited_models {
-            if inherited.model_name == model {
-                return self.resolve_inherited_price(inherited);
+            // 加载源模板并获取基础价格（包括别名信息）
+            if let Ok(source_template) = self.get_template(&inherited.source_template_id) {
+                if let Ok(base_price) =
+                    self.resolve_model_price(&source_template, &inherited.model_name)
+                {
+                    // 检查请求的模型名是否匹配模型名或别名
+                    if inherited.model_name == model
+                        || base_price.aliases.contains(&model.to_string())
+                    {
+                        // 应用倍率
+                        return Ok(ModelPrice {
+                            provider: base_price.provider,
+                            input_price_per_1m: base_price.input_price_per_1m
+                                * inherited.multiplier,
+                            output_price_per_1m: base_price.output_price_per_1m
+                                * inherited.multiplier,
+                            cache_write_price_per_1m: base_price
+                                .cache_write_price_per_1m
+                                .map(|p| p * inherited.multiplier),
+                            cache_read_price_per_1m: base_price
+                                .cache_read_price_per_1m
+                                .map(|p| p * inherited.multiplier),
+                            currency: base_price.currency,
+                            aliases: base_price.aliases,
+                        });
+                    }
+                }
             }
         }
 
@@ -328,30 +350,6 @@ impl PricingManager {
             model,
             template.id
         ))
-    }
-
-    /// 递归解析继承价格
-    fn resolve_inherited_price(&self, inherited: &InheritedModel) -> Result<ModelPrice> {
-        // 1. 加载源模板
-        let source_template = self.get_template(&inherited.source_template_id)?;
-
-        // 2. 递归解析源模板中的价格
-        let base_price = self.resolve_model_price(&source_template, &inherited.model_name)?;
-
-        // 3. 应用倍率
-        Ok(ModelPrice {
-            provider: base_price.provider,
-            input_price_per_1m: base_price.input_price_per_1m * inherited.multiplier,
-            output_price_per_1m: base_price.output_price_per_1m * inherited.multiplier,
-            cache_write_price_per_1m: base_price
-                .cache_write_price_per_1m
-                .map(|p| p * inherited.multiplier),
-            cache_read_price_per_1m: base_price
-                .cache_read_price_per_1m
-                .map(|p| p * inherited.multiplier),
-            currency: base_price.currency,
-            aliases: base_price.aliases,
-        })
     }
 }
 
@@ -378,15 +376,15 @@ mod tests {
         assert!(manager.default_templates_path.exists());
 
         // 验证内置模板存在
-        let template = manager.get_template("claude_official_2025_01").unwrap();
-        assert_eq!(template.id, "claude_official_2025_01");
+        let template = manager.get_template("builtin_claude").unwrap();
+        assert_eq!(template.id, "builtin_claude");
         assert!(template.is_default_preset);
     }
 
     #[test]
     fn test_resolve_model_price_with_alias() {
         let (manager, _dir) = create_test_manager();
-        let template = manager.get_template("claude_official_2025_01").unwrap();
+        let template = manager.get_template("builtin_claude").unwrap();
 
         // 测试直接匹配
         let price1 = manager
@@ -412,7 +410,7 @@ mod tests {
 
         let breakdown = manager
             .calculate_cost(
-                Some("claude_official_2025_01"),
+                Some("builtin_claude"),
                 "claude-sonnet-4.5",
                 1000, // input
                 500,  // output
@@ -442,7 +440,7 @@ mod tests {
             + breakdown.cache_read_price;
         assert_eq!(breakdown.total_cost, expected_total);
 
-        assert_eq!(breakdown.template_id, "claude_official_2025_01");
+        assert_eq!(breakdown.template_id, "builtin_claude");
     }
 
     #[test]
@@ -458,12 +456,12 @@ mod tests {
             vec![
                 InheritedModel::new(
                     "claude-sonnet-4.5".to_string(),
-                    "claude_official_2025_01".to_string(),
+                    "builtin_claude".to_string(),
                     1.1,
                 ),
                 InheritedModel::new(
                     "claude-opus-4.5".to_string(),
-                    "claude_official_2025_01".to_string(),
+                    "builtin_claude".to_string(),
                     1.5,
                 ),
             ],
@@ -498,7 +496,7 @@ mod tests {
             .calculate_cost(None, "claude-sonnet-4.5", 1000, 500, 0, 0)
             .unwrap();
 
-        assert_eq!(breakdown.template_id, "claude_official_2025_01");
+        assert_eq!(breakdown.template_id, "builtin_claude");
         assert_eq!(breakdown.input_price, 0.003);
         assert_eq!(breakdown.output_price, 0.0075);
     }
@@ -509,12 +507,12 @@ mod tests {
 
         // 设置默认模板
         manager
-            .set_default_template("test-tool", "claude_official_2025_01")
+            .set_default_template("test-tool", "builtin_claude")
             .unwrap();
 
         // 获取默认模板
         let template = manager.get_default_template("test-tool").unwrap();
-        assert_eq!(template.id, "claude_official_2025_01");
+        assert_eq!(template.id, "builtin_claude");
     }
 
     #[test]
@@ -546,7 +544,7 @@ mod tests {
         let (manager, _dir) = create_test_manager();
 
         // 尝试删除内置模板应该失败
-        let result = manager.delete_template("claude_official_2025_01");
+        let result = manager.delete_template("builtin_claude");
         assert!(result.is_err());
         assert!(result
             .unwrap_err()

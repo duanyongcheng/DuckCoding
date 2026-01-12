@@ -94,6 +94,17 @@ impl ProfileManager {
     // ==================== Claude Code ====================
 
     pub fn save_claude_profile(&self, name: &str, api_key: String, base_url: String) -> Result<()> {
+        self.save_claude_profile_with_template(name, api_key, base_url, None)
+    }
+
+    /// 保存 Claude Profile（支持价格模板）
+    pub fn save_claude_profile_with_template(
+        &self,
+        name: &str,
+        api_key: String,
+        base_url: String,
+        pricing_template_id: Option<String>,
+    ) -> Result<()> {
         // 保留字校验
         validate_profile_name(name)?;
 
@@ -107,6 +118,8 @@ impl ProfileManager {
             if !base_url.is_empty() {
                 existing.base_url = base_url;
             }
+            // Phase 6: 更新价格模板 ID（允许清空）
+            existing.pricing_template_id = pricing_template_id;
             existing.updated_at = Utc::now();
             existing.clone()
         } else {
@@ -122,7 +135,7 @@ impl ProfileManager {
                 raw_settings: None,
                 raw_config_json: None,
                 source: ProfileSource::Custom,
-                pricing_template_id: None,
+                pricing_template_id, // Phase 6: 价格模板 ID
             }
         };
 
@@ -177,6 +190,18 @@ impl ProfileManager {
         base_url: String,
         wire_api: Option<String>,
     ) -> Result<()> {
+        self.save_codex_profile_with_template(name, api_key, base_url, wire_api, None)
+    }
+
+    /// 保存 Codex Profile（支持价格模板）
+    pub fn save_codex_profile_with_template(
+        &self,
+        name: &str,
+        api_key: String,
+        base_url: String,
+        wire_api: Option<String>,
+        pricing_template_id: Option<String>,
+    ) -> Result<()> {
         // 保留字校验
         validate_profile_name(name)?;
 
@@ -193,6 +218,8 @@ impl ProfileManager {
             if let Some(w) = wire_api {
                 existing.wire_api = w;
             }
+            // Phase 6: 更新价格模板 ID（允许清空）
+            existing.pricing_template_id = pricing_template_id;
             existing.updated_at = Utc::now();
             existing.clone()
         } else {
@@ -209,7 +236,7 @@ impl ProfileManager {
                 raw_config_toml: None,
                 raw_auth_json: None,
                 source: ProfileSource::Custom,
-                pricing_template_id: None,
+                pricing_template_id, // Phase 6: 价格模板 ID
             }
         };
 
@@ -264,6 +291,18 @@ impl ProfileManager {
         base_url: String,
         model: Option<String>,
     ) -> Result<()> {
+        self.save_gemini_profile_with_template(name, api_key, base_url, model, None)
+    }
+
+    /// 保存 Gemini Profile（支持价格模板）
+    pub fn save_gemini_profile_with_template(
+        &self,
+        name: &str,
+        api_key: String,
+        base_url: String,
+        model: Option<String>,
+        pricing_template_id: Option<String>,
+    ) -> Result<()> {
         // 保留字校验
         validate_profile_name(name)?;
 
@@ -282,6 +321,8 @@ impl ProfileManager {
                     existing.model = Some(m);
                 }
             }
+            // Phase 6: 更新价格模板 ID（允许清空）
+            existing.pricing_template_id = pricing_template_id;
             existing.updated_at = Utc::now();
             existing.clone()
         } else {
@@ -298,7 +339,7 @@ impl ProfileManager {
                 raw_settings: None,
                 raw_env: None,
                 source: ProfileSource::Custom,
-                pricing_template_id: None,
+                pricing_template_id, // Phase 6: 价格模板 ID
             }
         };
 

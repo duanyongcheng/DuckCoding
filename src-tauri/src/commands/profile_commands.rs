@@ -16,12 +16,19 @@ pub struct ProfileManagerState {
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum ProfileInput {
     #[serde(rename = "claude-code")]
-    Claude { api_key: String, base_url: String },
+    Claude {
+        api_key: String,
+        base_url: String,
+        #[serde(default)]
+        pricing_template_id: Option<String>, // 🆕 Phase 6: 价格模板 ID
+    },
     #[serde(rename = "codex")]
     Codex {
         api_key: String,
         base_url: String,
         wire_api: String,
+        #[serde(default)]
+        pricing_template_id: Option<String>, // 🆕 Phase 6: 价格模板 ID
     },
     #[serde(rename = "gemini-cli")]
     Gemini {
@@ -29,6 +36,8 @@ pub enum ProfileInput {
         base_url: String,
         #[serde(default)]
         model: Option<String>,
+        #[serde(default)]
+        pricing_template_id: Option<String>, // 🆕 Phase 6: 价格模板 ID
     },
 }
 
@@ -108,8 +117,18 @@ pub async fn pm_save_profile(
 
     match tool_id.as_str() {
         "claude-code" => {
-            if let ProfileInput::Claude { api_key, base_url } = input {
-                Ok(manager.save_claude_profile(&name, api_key, base_url)?)
+            if let ProfileInput::Claude {
+                api_key,
+                base_url,
+                pricing_template_id,
+            } = input
+            {
+                Ok(manager.save_claude_profile_with_template(
+                    &name,
+                    api_key,
+                    base_url,
+                    pricing_template_id,
+                )?)
             } else {
                 Err(super::error::AppError::ValidationError {
                     field: "input".to_string(),
@@ -122,9 +141,16 @@ pub async fn pm_save_profile(
                 api_key,
                 base_url,
                 wire_api,
+                pricing_template_id,
             } = input
             {
-                Ok(manager.save_codex_profile(&name, api_key, base_url, Some(wire_api))?)
+                Ok(manager.save_codex_profile_with_template(
+                    &name,
+                    api_key,
+                    base_url,
+                    Some(wire_api),
+                    pricing_template_id,
+                )?)
             } else {
                 Err(super::error::AppError::ValidationError {
                     field: "input".to_string(),
@@ -137,9 +163,16 @@ pub async fn pm_save_profile(
                 api_key,
                 base_url,
                 model,
+                pricing_template_id,
             } = input
             {
-                Ok(manager.save_gemini_profile(&name, api_key, base_url, model)?)
+                Ok(manager.save_gemini_profile_with_template(
+                    &name,
+                    api_key,
+                    base_url,
+                    model,
+                    pricing_template_id,
+                )?)
             } else {
                 Err(super::error::AppError::ValidationError {
                     field: "input".to_string(),

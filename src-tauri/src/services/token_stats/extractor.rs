@@ -331,12 +331,12 @@ mod tests {
     #[test]
     fn test_extract_model_from_request() {
         let extractor = ClaudeTokenExtractor;
-        let body = r#"{"model":"claude-3-5-sonnet-20241022","messages":[]}"#;
+        let body = r#"{"model":"claude-sonnet-4-5-20250929","messages":[]}"#;
 
         let model = extractor
             .extract_model_from_request(body.as_bytes())
             .unwrap();
-        assert_eq!(model, "claude-3-5-sonnet-20241022");
+        assert_eq!(model, "claude-sonnet-4-5-20250929");
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         let extractor = ClaudeTokenExtractor;
         let json_str = r#"{
             "id": "msg_013B8kRbTZdntKmHWE6AZzuU",
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5-20250929",
             "type": "message",
             "role": "assistant",
             "content": [{"type": "text", "text": "test"}],
@@ -458,7 +458,7 @@ mod tests {
         let json: Value = serde_json::from_str(json_str).unwrap();
         let result = extractor.extract_from_json(&json).unwrap();
 
-        assert_eq!(result.model, "claude-3-5-sonnet-20241022");
+        assert_eq!(result.model, "claude-sonnet-4-5-20250929");
         assert_eq!(result.message_id, "msg_013B8kRbTZdntKmHWE6AZzuU");
         assert_eq!(result.input_tokens, 12);
         assert_eq!(result.output_tokens, 259);

@@ -10,6 +10,7 @@
 export interface ClaudeProfilePayload {
   api_key: string;
   base_url: string;
+  pricing_template_id?: string; // 🆕 Phase 6: 价格模板 ID
 }
 
 /**
@@ -19,6 +20,7 @@ export interface CodexProfilePayload {
   api_key: string;
   base_url: string;
   wire_api: string; // "responses" 或 "chat"
+  pricing_template_id?: string; // 🆕 Phase 6: 价格模板 ID
 }
 
 /**
@@ -28,6 +30,7 @@ export interface GeminiProfilePayload {
   api_key: string;
   base_url: string;
   model?: string; // 可选,不填则不修改原生配置
+  pricing_template_id?: string; // 🆕 Phase 6: 价格模板 ID
 }
 
 /**
@@ -56,6 +59,8 @@ export interface ProfileData {
   raw_config_toml?: string;
   raw_auth_json?: Record<string, unknown>;
   raw_env?: string;
+  // 🆕 Phase 6: 价格模板 ID
+  pricing_template_id?: string;
 }
 
 /**
@@ -91,6 +96,8 @@ export interface ProfileDescriptor {
   provider?: string; // 向后兼容
   // Gemini 特定字段
   model?: string;
+  // 🆕 Phase 6: 价格模板 ID
+  pricing_template_id?: string;
 }
 
 /**
@@ -127,6 +134,8 @@ export interface ProfileFormData {
   wire_api?: string;
   // Gemini 特定
   model?: string;
+  // 🆕 Phase 6: 价格模板 ID
+  pricing_template_id?: string;
 }
 
 /**

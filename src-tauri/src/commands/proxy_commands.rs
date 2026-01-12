@@ -381,24 +381,36 @@ pub async fn update_proxy_from_profile(
     let proxy_config_mgr = ProxyConfigManager::new().map_err(|e| e.to_string())?;
 
     // 根据工具类型读取 Profile
-    let (api_key, base_url) = match tool_id.as_str() {
+    let (api_key, base_url, pricing_template_id) = match tool_id.as_str() {
         "claude-code" => {
             let profile = profile_mgr
                 .get_claude_profile(&profile_name)
                 .map_err(|e| e.to_string())?;
-            (profile.api_key, profile.base_url)
+            (
+                profile.api_key,
+                profile.base_url,
+                profile.pricing_template_id,
+            )
         }
         "codex" => {
             let profile = profile_mgr
                 .get_codex_profile(&profile_name)
                 .map_err(|e| e.to_string())?;
-            (profile.api_key, profile.base_url)
+            (
+                profile.api_key,
+                profile.base_url,
+                profile.pricing_template_id,
+            )
         }
         "gemini-cli" => {
             let profile = profile_mgr
                 .get_gemini_profile(&profile_name)
                 .map_err(|e| e.to_string())?;
-            (profile.api_key, profile.base_url)
+            (
+                profile.api_key,
+                profile.base_url,
+                profile.pricing_template_id,
+            )
         }
         _ => return Err(format!("不支持的工具: {}", tool_id)),
     };
@@ -415,6 +427,7 @@ pub async fn update_proxy_from_profile(
     proxy_config.real_api_key = Some(api_key);
     proxy_config.real_base_url = Some(base_url);
     proxy_config.real_profile_name = Some(profile_name.clone());
+    proxy_config.pricing_template_id = pricing_template_id; // Phase 6: 价格模板
 
     proxy_config_mgr
         .update_config(&tool_id, proxy_config.clone())

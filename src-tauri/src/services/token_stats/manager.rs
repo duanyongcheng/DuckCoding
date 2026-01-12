@@ -450,14 +450,14 @@ mod tests {
         let manager = TokenStatsManager::get();
 
         let request_body = json!({
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5-20250929",
             "messages": []
         })
         .to_string();
 
         let response_json = json!({
             "id": "msg_test_123",
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5-20250929",
             "usage": {
                 "input_tokens": 100,
                 "output_tokens": 50,

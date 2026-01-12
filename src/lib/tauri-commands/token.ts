@@ -73,6 +73,7 @@ export async function importTokenAsProfile(
   remoteToken: RemoteToken,
   toolId: string,
   profileName: string,
+  pricingTemplateId?: string, // 🆕 Phase 6: 可选的价格模板 ID
 ): Promise<void> {
   return invoke<void>('import_token_as_profile', {
     profileManager: null, // Managed by Tauri State
@@ -80,6 +81,7 @@ export async function importTokenAsProfile(
     remoteToken,
     toolId,
     profileName,
+    pricingTemplateId: pricingTemplateId || null,
   });
 }
 
@@ -91,7 +93,7 @@ export async function createCustomProfile(
   profileName: string,
   apiKey: string,
   baseUrl: string,
-  extraConfig?: { wire_api?: string; model?: string },
+  extraConfig?: { wire_api?: string; model?: string; pricing_template_id?: string },
 ): Promise<void> {
   return invoke<void>('create_custom_profile', {
     profileManager: null, // Managed by Tauri State

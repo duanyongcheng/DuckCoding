@@ -29,6 +29,7 @@ import { openExternalLink } from '@/utils/formatting';
 import { groupNameMap } from '@/utils/constants';
 import type { ProfileFormData, ToolId } from '@/types/profile';
 import { TOOL_NAMES } from '@/types/profile';
+import { PricingTemplateSelector } from './PricingTemplateSelector';
 
 interface ProfileEditorProps {
   open: boolean;
@@ -287,6 +288,13 @@ export function ProfileEditor({
                 <p className="text-xs text-muted-foreground">DuckCoding 提供商使用默认端点地址</p>
               )}
             </div>
+
+            {/* Phase 6: 价格模板选择器 */}
+            <PricingTemplateSelector
+              toolId={toolId}
+              value={formData.pricing_template_id}
+              onChange={(value) => handleChange('pricing_template_id', value || '')}
+            />
 
             {/* Codex 特定：Wire API */}
             {toolId === 'codex' && (

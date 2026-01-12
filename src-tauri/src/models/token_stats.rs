@@ -268,7 +268,7 @@ mod tests {
             "127.0.0.1".to_string(),
             "session_123".to_string(),
             "default".to_string(),
-            "claude-3-5-sonnet-20241022".to_string(),
+            "claude-sonnet-4-5-20250929".to_string(),
             Some("msg_123".to_string()),
             1000,
             500,
@@ -284,7 +284,7 @@ mod tests {
             Some(0.000375),
             Some(0.00006),
             0.011235,
-            Some("claude_official_2025_01".to_string()),
+            Some("builtin_claude".to_string()),
         );
 
         assert_eq!(log.tool_type, "claude_code");
@@ -293,10 +293,7 @@ mod tests {
         assert!(log.is_success());
         assert_eq!(log.response_time_ms, Some(1500));
         assert_eq!(log.total_cost, 0.011235);
-        assert_eq!(
-            log.pricing_template_id,
-            Some("claude_official_2025_01".to_string())
-        );
+        assert_eq!(log.pricing_template_id, Some("builtin_claude".to_string()));
     }
 
     #[test]

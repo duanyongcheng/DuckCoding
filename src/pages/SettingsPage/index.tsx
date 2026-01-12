@@ -10,6 +10,7 @@ import { ProxySettingsTab } from './components/ProxySettingsTab';
 import { LogSettingsTab } from './components/LogSettingsTab';
 import { ConfigGuardTab } from './components/ConfigGuardTab';
 import { TokenStatsTab } from './components/TokenStatsTab';
+import { PricingTab } from './components/PricingTab';
 import type { GlobalConfig, UpdateInfo } from '@/lib/tauri-commands';
 
 interface SettingsPageProps {
@@ -164,6 +165,9 @@ export function SettingsPage({
           >
             Token 统计
           </TabsTrigger>
+          <TabsTrigger value="pricing" disabled={!!restrictToTab && restrictToTab !== 'pricing'}>
+            价格配置
+          </TabsTrigger>
         </TabsList>
 
         {/* 系统设置 */}
@@ -208,6 +212,11 @@ export function SettingsPage({
         {/* Token 统计 */}
         <TabsContent value="token-stats" className="space-y-6">
           <TokenStatsTab />
+        </TabsContent>
+
+        {/* 价格配置 */}
+        <TabsContent value="pricing" className="space-y-6">
+          <PricingTab />
         </TabsContent>
       </Tabs>
 

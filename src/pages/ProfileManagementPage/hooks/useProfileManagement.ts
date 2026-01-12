@@ -241,6 +241,7 @@ function buildProfilePayload(toolId: ToolId, data: ProfileFormData): ProfilePayl
         type: 'claude-code',
         api_key: data.api_key,
         base_url: data.base_url,
+        pricing_template_id: data.pricing_template_id, // Phase 6: 价格模板
       };
 
     case 'codex':
@@ -249,6 +250,7 @@ function buildProfilePayload(toolId: ToolId, data: ProfileFormData): ProfilePayl
         api_key: data.api_key,
         base_url: data.base_url,
         wire_api: data.wire_api || 'responses', // 确保有 wire_api
+        pricing_template_id: data.pricing_template_id, // Phase 6: 价格模板
       };
 
     case 'gemini-cli':
@@ -257,6 +259,7 @@ function buildProfilePayload(toolId: ToolId, data: ProfileFormData): ProfilePayl
         api_key: data.api_key,
         base_url: data.base_url,
         model: data.model && data.model !== '' ? data.model : undefined, // 空值不设置 model
+        pricing_template_id: data.pricing_template_id, // Phase 6: 价格模板
       };
 
     default:

@@ -380,6 +380,13 @@ fn main() {
         set_tool_instance_selection,
         get_selected_provider_id,
         set_selected_provider_id,
+        // 价格配置管理命令（Phase 6）
+        list_pricing_templates,
+        get_pricing_template,
+        save_pricing_template,
+        delete_pricing_template,
+        set_default_template,
+        get_default_template,
     ]);
 
     // 使用自定义事件循环处理 macOS Reopen 事件和应用关闭

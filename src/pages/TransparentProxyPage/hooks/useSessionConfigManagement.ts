@@ -42,7 +42,7 @@ export function useSessionConfigManagement() {
     try {
       if (selectedProfile === 'global') {
         // 切换到全局配置：config_name="global", custom_profile_name=null, url="", api_key=""
-        await updateSessionConfig(sessionId, 'global', null, '', '');
+        await updateSessionConfig(sessionId, 'global', null, '', '', null);
       } else {
         // 切换到自定义配置：读取指定配置文件的详情（不激活）
         const profileData = await pmGetProfile('claude-code', selectedProfile);
@@ -53,6 +53,7 @@ export function useSessionConfigManagement() {
           selectedProfile,
           profileData.base_url,
           profileData.api_key,
+          profileData.pricing_template_id, // Phase 6: 价格模板
         );
       }
       return { success: true };

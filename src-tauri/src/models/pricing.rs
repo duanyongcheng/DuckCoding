@@ -243,12 +243,12 @@ mod tests {
     fn test_inherited_model_creation() {
         let inherited = InheritedModel::new(
             "claude-sonnet-4.5".to_string(),
-            "claude_official_2025_01".to_string(),
+            "builtin_claude".to_string(),
             1.1,
         );
 
         assert_eq!(inherited.model_name, "claude-sonnet-4.5");
-        assert_eq!(inherited.source_template_id, "claude_official_2025_01");
+        assert_eq!(inherited.source_template_id, "builtin_claude");
         assert_eq!(inherited.multiplier, 1.1);
     }
 

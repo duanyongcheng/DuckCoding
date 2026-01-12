@@ -6,8 +6,8 @@ use crate::data::managers::sqlite::QueryRow;
 use crate::services::session::models::ProxySession;
 use anyhow::{anyhow, Context, Result};
 
-/// 会话配置类型：(config_name, url, api_key, pricing_template_id)
-pub type SessionConfig = (String, String, String, Option<String>);
+/// 会话配置类型：(config_name, custom_profile_name, url, api_key, pricing_template_id)
+pub type SessionConfig = (String, Option<String>, String, String, Option<String>);
 
 /// 标准会话查询的 SQL 语句
 ///
@@ -163,13 +163,13 @@ pub fn parse_count(row: &QueryRow) -> Result<usize> {
         .map(|v| v as usize)
 }
 
-/// 从 QueryRow 提取四元组配置 (config_name, url, api_key, pricing_template_id)
+/// 从 QueryRow 提取五元组配置 (config_name, custom_profile_name, url, api_key, pricing_template_id)
 ///
 /// 用于 `get_session_config()` 方法的结果解析
 pub fn parse_session_config(row: &QueryRow) -> Result<SessionConfig> {
-    if row.values.len() != 4 {
+    if row.values.len() != 5 {
         return Err(anyhow!(
-            "Invalid config row: expected 4 columns, got {}",
+            "Invalid config row: expected 5 columns, got {}",
             row.values.len()
         ));
     }
@@ -179,19 +179,27 @@ pub fn parse_session_config(row: &QueryRow) -> Result<SessionConfig> {
         .ok_or_else(|| anyhow!("config_name is not a string"))?
         .to_string();
 
-    let url = row.values[1]
+    let custom_profile_name = row.values[1].as_str().map(|s| s.to_string());
+
+    let url = row.values[2]
         .as_str()
         .ok_or_else(|| anyhow!("url is not a string"))?
         .to_string();
 
-    let api_key = row.values[2]
+    let api_key = row.values[3]
         .as_str()
         .ok_or_else(|| anyhow!("api_key is not a string"))?
         .to_string();
 
-    let pricing_template_id = row.values[3].as_str().map(|s| s.to_string());
+    let pricing_template_id = row.values[4].as_str().map(|s| s.to_string());
 
-    Ok((config_name, url, api_key, pricing_template_id))
+    Ok((
+        config_name,
+        custom_profile_name,
+        url,
+        api_key,
+        pricing_template_id,
+    ))
 }
 
 #[cfg(test)]
@@ -320,21 +328,25 @@ mod tests {
         let row = QueryRow {
             columns: vec![
                 "config_name".to_string(),
+                "custom_profile_name".to_string(),
                 "url".to_string(),
                 "api_key".to_string(),
                 "pricing_template_id".to_string(),
             ],
             values: vec![
                 json!("custom"),
+                json!("my-profile"),
                 json!("https://api.test.com"),
                 json!("sk-xxx"),
                 json!("anthropic_official"),
             ],
         };
 
-        let (config_name, url, api_key, pricing_template_id) = parse_session_config(&row).unwrap();
+        let (config_name, custom_profile_name, url, api_key, pricing_template_id) =
+            parse_session_config(&row).unwrap();
 
         assert_eq!(config_name, "custom");
+        assert_eq!(custom_profile_name, Some("my-profile".to_string()));
         assert_eq!(url, "https://api.test.com");
         assert_eq!(api_key, "sk-xxx");
         assert_eq!(pricing_template_id, Some("anthropic_official".to_string()));
@@ -345,21 +357,25 @@ mod tests {
         let row = QueryRow {
             columns: vec![
                 "config_name".to_string(),
+                "custom_profile_name".to_string(),
                 "url".to_string(),
                 "api_key".to_string(),
                 "pricing_template_id".to_string(),
             ],
             values: vec![
                 json!("global"),
+                json!(null),
                 json!("https://api.example.com"),
                 json!("sk-test"),
                 json!(null),
             ],
         };
 
-        let (config_name, url, api_key, pricing_template_id) = parse_session_config(&row).unwrap();
+        let (config_name, custom_profile_name, url, api_key, pricing_template_id) =
+            parse_session_config(&row).unwrap();
 
         assert_eq!(config_name, "global");
+        assert_eq!(custom_profile_name, None);
         assert_eq!(url, "https://api.example.com");
         assert_eq!(api_key, "sk-test");
         assert_eq!(pricing_template_id, None);

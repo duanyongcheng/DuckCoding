@@ -51,6 +51,7 @@ import { generateApiKeyForTool, getGlobalConfig } from '@/lib/tauri-commands';
 import { DuckCodingGroupHint } from './DuckCodingGroupHint';
 import { TokenDetailCard } from './TokenDetailCard';
 import { ProfileNameInput } from './ProfileNameInput';
+import { PricingTemplateSelector } from './PricingTemplateSelector';
 
 interface ImportFromProviderDialogProps {
   /** 对话框打开状态 */
@@ -98,6 +99,7 @@ export const ImportFromProviderDialog = forwardRef<
 
   // ==================== 共享状态 ====================
   const [profileName, setProfileName] = useState('');
+  const [pricingTemplateId, setPricingTemplateId] = useState<string | undefined>(undefined); // 🆕 Phase 6: 价格模板
 
   // ==================== 加载状态 ====================
   const [loadingProviders, setLoadingProviders] = useState(false);
@@ -407,7 +409,13 @@ export const ImportFromProviderDialog = forwardRef<
         return;
       }
 
-      await importTokenAsProfile(selectedProvider, selectedToken, toolId, profileName);
+      await importTokenAsProfile(
+        selectedProvider,
+        selectedToken,
+        toolId,
+        profileName,
+        pricingTemplateId, // 🆕 Phase 6: 价格模板 ID
+      );
       toast({
         title: '导入成功',
         description: `令牌「${selectedToken.name}」已成功导入为 Profile「${profileName}」`,
@@ -554,7 +562,13 @@ export const ImportFromProviderDialog = forwardRef<
       const newToken = sortedTokens[0];
 
       // 直接导入为 Profile
-      await importTokenAsProfile(selectedProvider, newToken, toolId, profileName);
+      await importTokenAsProfile(
+        selectedProvider,
+        newToken,
+        toolId,
+        profileName,
+        pricingTemplateId, // 🆕 Phase 6: 价格模板 ID
+      );
 
       toast({
         title: '导入成功',
@@ -722,6 +736,13 @@ export const ImportFromProviderDialog = forwardRef<
                 placeholder="例如: my_token_profile"
               />
 
+              {/* 🆕 Phase 6: 价格模板选择器 */}
+              <PricingTemplateSelector
+                toolId={toolId}
+                value={pricingTemplateId}
+                onChange={setPricingTemplateId}
+              />
+
               {/* 导入按钮 */}
               <DialogFooter>
                 <Button
@@ -881,6 +902,13 @@ export const ImportFromProviderDialog = forwardRef<
                 value={profileName}
                 onChange={setProfileName}
                 placeholder="例如: my_token_profile"
+              />
+
+              {/* 🆕 Phase 6: 价格模板选择器 */}
+              <PricingTemplateSelector
+                toolId={toolId}
+                value={pricingTemplateId}
+                onChange={setPricingTemplateId}
               />
 
               {/* 创建并导入按钮 */}

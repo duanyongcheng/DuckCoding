@@ -263,7 +263,7 @@ mod tests {
                 "127.0.0.1".to_string(),
                 "test_session".to_string(),
                 "default".to_string(),
-                "claude-3-5-sonnet-20241022".to_string(),
+                "claude-sonnet-4-5-20250929".to_string(),
                 Some(format!("msg_{}", i)),
                 100,
                 50,
@@ -315,7 +315,7 @@ mod tests {
             .unwrap()
             .timestamp_millis();
 
-        let models = ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229"];
+        let models = ["claude-sonnet-4-5-20250929", "claude-3-opus-20240229"];
         let configs = ["default", "custom"];
 
         for (i, model) in models.iter().enumerate() {

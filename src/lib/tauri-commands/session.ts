@@ -45,6 +45,7 @@ export async function clearAllSessions(toolId: string): Promise<void> {
  * @param customProfileName - 自定义配置名称 (global 时为 null)
  * @param url - API Base URL (global 时为空字符串)
  * @param apiKey - API Key (global 时为空字符串)
+ * @param pricingTemplateId - 价格模板 ID (Phase 6)
  */
 export async function updateSessionConfig(
   sessionId: string,
@@ -52,6 +53,7 @@ export async function updateSessionConfig(
   customProfileName: string | null,
   url: string,
   apiKey: string,
+  pricingTemplateId?: string | null,
 ): Promise<void> {
   return await invoke<void>('update_session_config', {
     sessionId,
@@ -59,6 +61,7 @@ export async function updateSessionConfig(
     customProfileName,
     url,
     apiKey,
+    pricingTemplateId: pricingTemplateId || null,
   });
 }
 

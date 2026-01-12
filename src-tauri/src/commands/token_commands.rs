@@ -100,6 +100,7 @@ pub async fn import_token_as_profile(
     remote_token: RemoteToken,
     tool_id: String,
     profile_name: String,
+    pricing_template_id: Option<String>, // 🆕 Phase 6: 可选的价格模板 ID
 ) -> Result<(), String> {
     // 验证 tool_id
     if tool_id != "claude-code" && tool_id != "codex" && tool_id != "gemini-cli" {
@@ -139,7 +140,7 @@ pub async fn import_token_as_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_config_json: None,
-                pricing_template_id: None,
+                pricing_template_id: pricing_template_id.clone(),
             };
             store.claude_code.insert(profile_name.clone(), profile);
         }
@@ -153,7 +154,7 @@ pub async fn import_token_as_profile(
                 updated_at: Utc::now(),
                 raw_config_toml: None,
                 raw_auth_json: None,
-                pricing_template_id: None,
+                pricing_template_id: pricing_template_id.clone(),
             };
             store.codex.insert(profile_name.clone(), profile);
         }
@@ -167,7 +168,7 @@ pub async fn import_token_as_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_env: None,
-                pricing_template_id: None,
+                pricing_template_id: pricing_template_id.clone(),
             };
             store.gemini_cli.insert(profile_name.clone(), profile);
         }
@@ -203,6 +204,13 @@ pub async fn create_custom_profile(
     let manager = profile_manager.manager.read().await;
     let mut store = manager.load_profiles_store().map_err(|e| e.to_string())?;
 
+    // 从 extra_config 中提取 pricing_template_id
+    let pricing_template_id = extra_config
+        .as_ref()
+        .and_then(|v| v.get("pricing_template_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     // 根据工具类型创建对应的 Profile
     match tool_id.as_str() {
         "claude-code" => {
@@ -214,7 +222,7 @@ pub async fn create_custom_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_config_json: None,
-                pricing_template_id: None,
+                pricing_template_id: pricing_template_id.clone(),
             };
             store.claude_code.insert(profile_name.clone(), profile);
         }
@@ -236,7 +244,7 @@ pub async fn create_custom_profile(
                 updated_at: Utc::now(),
                 raw_config_toml: None,
                 raw_auth_json: None,
-                pricing_template_id: None,
+                pricing_template_id: pricing_template_id.clone(),
             };
             store.codex.insert(profile_name.clone(), profile);
         }
@@ -257,7 +265,7 @@ pub async fn create_custom_profile(
                 updated_at: Utc::now(),
                 raw_settings: None,
                 raw_env: None,
-                pricing_template_id: None,
+                pricing_template_id: pricing_template_id.clone(),
             };
             store.gemini_cli.insert(profile_name.clone(), profile);
         }

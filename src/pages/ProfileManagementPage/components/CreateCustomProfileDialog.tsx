@@ -21,6 +21,7 @@ import { Loader2, Sparkles, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ToolId } from '@/types/profile';
 import { ProfileNameInput } from './ProfileNameInput';
+import { PricingTemplateSelector } from './PricingTemplateSelector';
 import { pmListToolProfiles } from '@/lib/tauri-commands/profile';
 import { createCustomProfile } from '@/lib/tauri-commands/token';
 
@@ -55,6 +56,7 @@ export function CreateCustomProfileDialog({
   const [apiKey, setApiKey] = useState('');
   const [wireApi, setWireApi] = useState('responses'); // Codex 特定
   const [model, setModel] = useState(''); // Gemini 特定
+  const [pricingTemplateId, setPricingTemplateId] = useState<string | undefined>(undefined); // Phase 6: 价格模板
 
   // UI 状态
   const [creating, setCreating] = useState(false);
@@ -71,6 +73,7 @@ export function CreateCustomProfileDialog({
       setApiKey('');
       setWireApi('responses');
       setModel('');
+      setPricingTemplateId(undefined);
       // 重置横幅状态（每次打开时都显示）
       setBannerVisible(true);
     }
@@ -141,11 +144,15 @@ export function CreateCustomProfileDialog({
       }
 
       // 构建额外配置
-      const extraConfig: { wire_api?: string; model?: string } = {};
+      const extraConfig: { wire_api?: string; model?: string; pricing_template_id?: string } = {};
       if (toolId === 'codex') {
         extraConfig.wire_api = wireApi;
       } else if (toolId === 'gemini-cli' && model.trim()) {
         extraConfig.model = model;
+      }
+      // Phase 6: 添加价格模板 ID
+      if (pricingTemplateId) {
+        extraConfig.pricing_template_id = pricingTemplateId;
       }
 
       // 调用创建 API
@@ -247,6 +254,13 @@ export function CreateCustomProfileDialog({
             />
             <p className="text-xs text-muted-foreground">您的 API 访问密钥</p>
           </div>
+
+          {/* Phase 6: 价格模板选择器 */}
+          <PricingTemplateSelector
+            toolId={toolId}
+            value={pricingTemplateId}
+            onChange={setPricingTemplateId}
+          />
 
           {/* Codex 特定配置 */}
           {toolId === 'codex' && (
