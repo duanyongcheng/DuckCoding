@@ -1,7 +1,7 @@
 /**
  * 配置守护设置标签页
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -35,12 +35,7 @@ export function ConfigGuardTab() {
   const [fieldsDialogOpen, setFieldsDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
-  // 加载配置
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
       const watchConfig = await getWatchConfig();
@@ -57,7 +52,12 @@ export function ConfigGuardTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  // 加载配置
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
 
   const handleSave = async () => {
     if (!config) return;
