@@ -11,6 +11,7 @@
 // - provider_manager: 供应商配置管理
 // - new_api: NEW API 客户端服务
 
+pub mod amp_native_config; // AMP Code 原生配置管理
 pub mod balance;
 pub mod config;
 pub mod dashboard_manager; // 仪表板状态管理
