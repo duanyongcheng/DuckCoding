@@ -104,7 +104,11 @@ export function ProfileCard({
                   激活中
                 </Badge>
               )}
-              <Badge variant={sourceInfo.variant} className="h-5 whitespace-nowrap" title={sourceInfo.tooltip}>
+              <Badge
+                variant={sourceInfo.variant}
+                className="h-5 whitespace-nowrap"
+                title={sourceInfo.tooltip}
+              >
                 <Tag className="mr-1 h-3 w-3" />
                 {sourceInfo.text}
               </Badge>
