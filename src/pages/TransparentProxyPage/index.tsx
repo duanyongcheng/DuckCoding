@@ -1,18 +1,20 @@
 // 透明代理管理页面
-// 提供三工具透明代理的统一管理界面
+// 提供三工具透明代理的统一管理界面（重构为 Tab 架构）
 
 import { useState, useEffect } from 'react';
-import { emit } from '@tauri-apps/api/event';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Loader2, BarChart3 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { useToast } from '@/hooks/use-toast';
 import { logoMap } from '@/utils/constants';
 import { ProxyControlBar } from './components/ProxyControlBar';
-import { ToolContent } from './components/ToolContent';
+import { SessionListTab } from './components/tabs/SessionListTab';
+import { GlobalStatsTab } from './components/tabs/GlobalStatsTab';
+import { GlobalLogsTab } from './components/tabs/GlobalLogsTab';
+import { SessionDetailPage } from './components/session-detail/SessionDetailPage';
 import { useToolProxyData } from './hooks/useToolProxyData';
 import { useProxyControl } from './hooks/useProxyControl';
+import { DEFAULT_VIEW_STATE, MAIN_TABS, type ViewState } from './types/tab-types';
 import type { ToolId, ToolMetadata } from './types/proxy-history';
 
 // 支持的工具列表
@@ -27,36 +29,25 @@ interface TransparentProxyPageProps {
 }
 
 /**
- * 透明代理管理页面
+ * 透明代理管理页面（重构版）
  *
  * 功能：
  * - 三工具 Tab 切换（Claude Code / Codex / Gemini CLI）
  * - 每个工具独立的代理控制（启动/停止）
- * - Claude Code 显示会话历史表格
- * - Codex / Gemini CLI 显示占位文本
+ * - 三个主 Tab：会话列表、全局统计、全局日志
+ * - 会话详情页：会话统计、会话日志、会话设置
  *
  * 架构特点：
- * - 工厂模式：ToolContent 根据 toolId 渲染不同组件
- * - 单一职责：每个组件负责特定功能
- * - 开放封闭：新增工具只需扩展工厂，无需修改主逻辑
+ * - Tab 驱动：扁平化 Tab 架构，清晰直观
+ * - 路由管理：主页面 ↔ 会话详情页无缝切换
+ * - 组件复用：统计和日志组件在多处复用
  */
 export function TransparentProxyPage({ selectedToolId: initialToolId }: TransparentProxyPageProps) {
   const { toast } = useToast();
   const [selectedToolId, setSelectedToolId] = useState<ToolId>('claude-code');
 
-  // 导航到 Token 统计页面
-  const handleNavigateToTokenStats = async () => {
-    try {
-      await emit('app-navigate', { tab: 'token-statistics' });
-    } catch (error) {
-      console.error('导航失败:', error);
-      toast({
-        title: '导航失败',
-        description: '无法打开统计页面',
-        variant: 'destructive',
-      });
-    }
-  };
+  // 视图状态管理
+  const [viewState, setViewState] = useState<ViewState>(DEFAULT_VIEW_STATE);
 
   // 当外部传入 toolId 时，更新选中状态
   useEffect(() => {
@@ -75,6 +66,29 @@ export function TransparentProxyPage({ selectedToolId: initialToolId }: Transpar
 
   // 使用代理控制 Hook
   const { startProxy, stopProxy, isLoading, isRunning, getPort } = useProxyControl();
+
+  /**
+   * 导航到会话详情页
+   */
+  const navigateToSessionDetail = (sessionId: string) => {
+    setViewState({
+      ...viewState,
+      mode: 'session-detail',
+      selectedSessionId: sessionId,
+      sessionDetailTab: 'session-stats', // 重置为第一个 Tab
+    });
+  };
+
+  /**
+   * 返回主页面
+   */
+  const navigateToMain = () => {
+    setViewState({
+      ...viewState,
+      mode: 'main',
+      selectedSessionId: null,
+    });
+  };
 
   /**
    * 启动代理处理
@@ -115,19 +129,11 @@ export function TransparentProxyPage({ selectedToolId: initialToolId }: Transpar
   return (
     <PageContainer>
       {/* 页面标题 */}
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold mb-1">透明代理</h2>
-          <p className="text-sm text-muted-foreground">
-            为不同 AI 编程工具提供统一的透明代理服务，支持配置热切换
-          </p>
-        </div>
-
-        {/* 统计按钮 */}
-        <Button variant="outline" onClick={handleNavigateToTokenStats} className="gap-2">
-          <BarChart3 className="h-4 w-4" />
-          查看统计
-        </Button>
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold mb-1">透明代理</h2>
+        <p className="text-sm text-muted-foreground">
+          为不同 AI 编程工具提供统一的透明代理服务，支持配置热切换
+        </p>
       </div>
 
       {/* 三工具 Tab 切换 */}
@@ -165,8 +171,41 @@ export function TransparentProxyPage({ selectedToolId: initialToolId }: Transpar
                 onSaveSettings={(updates) => saveToolConfig(tool.id, updates)}
               />
 
-              {/* 工具特定内容（工厂渲染） */}
-              <ToolContent toolId={tool.id} />
+              {/* 根据视图模式渲染内容 */}
+              {viewState.mode === 'main' ? (
+                // 主页面：三个 Tab（会话列表、全局统计、全局日志）
+                <Tabs
+                  value={viewState.mainTab}
+                  onValueChange={(val) => setViewState({ ...viewState, mainTab: val as any })}
+                >
+                  <TabsList className="grid w-full grid-cols-3 mt-4">
+                    {MAIN_TABS.map((tab) => (
+                      <TabsTrigger key={tab.id} value={tab.id}>
+                        {tab.icon} {tab.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
+                  <TabsContent value="session-list">
+                    <SessionListTab toolId={tool.id} onNavigateToDetail={navigateToSessionDetail} />
+                  </TabsContent>
+
+                  <TabsContent value="global-stats">
+                    <GlobalStatsTab toolId={tool.id} />
+                  </TabsContent>
+
+                  <TabsContent value="global-logs">
+                    <GlobalLogsTab toolId={tool.id} />
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                // 会话详情页
+                <SessionDetailPage
+                  sessionId={viewState.selectedSessionId!}
+                  toolId={tool.id}
+                  onBack={navigateToMain}
+                />
+              )}
             </TabsContent>
           );
         })}
