@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// 时间粒度
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeGranularity {
     /// 15分钟粒度
@@ -20,13 +20,8 @@ pub enum TimeGranularity {
     /// 12小时粒度
     TwelveHours,
     /// 天粒度
+    #[default]
     Day,
-}
-
-impl Default for TimeGranularity {
-    fn default() -> Self {
-        Self::Day
-    }
 }
 
 /// 趋势查询参数
@@ -80,21 +75,16 @@ pub struct TrendDataPoint {
 }
 
 /// 成本汇总分组方式
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CostGroupBy {
     /// 按模型分组
+    #[default]
     Model,
     /// 按配置分组
     Config,
     /// 按会话分组
     Session,
-}
-
-impl Default for CostGroupBy {
-    fn default() -> Self {
-        Self::Model
-    }
 }
 
 /// 成本汇总查询参数
