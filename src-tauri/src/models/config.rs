@@ -355,6 +355,7 @@ fn default_proxy_configs() -> HashMap<String, ToolProxyConfig> {
             session_endpoint_config_enabled: false,
             auto_start: false,
             original_active_profile: None,
+            pricing_template_id: None,
         },
     );
 

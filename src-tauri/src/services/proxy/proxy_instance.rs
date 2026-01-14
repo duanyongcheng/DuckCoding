@@ -154,10 +154,10 @@ impl ProxyInstance {
                                 // 记录连接层错误到数据库（无 session_id）
                                 let manager =
                                     crate::services::token_stats::manager::TokenStatsManager::get();
-                                let error_detail = format!("连接处理失败: {:?}", err);
+                                let error_detail = format!("连接处理失败: {:?}", e);
                                 let _ = manager
                                     .log_failed_request(
-                                        &tool_id_for_error,
+                                        &tool_id,
                                         "connection_error", // 通用会话 ID
                                         "global",
                                         "unknown", // 无法获取客户端 IP
@@ -468,8 +468,8 @@ async fn handle_request_inner(
 
         // SSE 流式响应：收集响应体并调用 processor.record_request_log
         use futures_util::StreamExt;
-        use std::sync::{Arc, Mutex};
         use regex::Regex;
+        use std::sync::{Arc, Mutex};
 
         let config_name = proxy_config
             .real_profile_name
