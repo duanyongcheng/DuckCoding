@@ -12,24 +12,17 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Loader2,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  History,
-  Search,
-} from 'lucide-react';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { CustomTimeRangeDialog } from '@/components/dialogs/CustomTimeRangeDialog';
 import { queryTokenLogs } from '@/lib/tauri-commands';
 import type { TokenLog, TokenLogsPage } from '@/types/token-stats';
 import {
@@ -45,6 +38,8 @@ interface LogsTableProps {
   initialToolType?: ToolType;
   /** 初始会话 ID 过滤 */
   initialSessionId?: string;
+  /** 是否隐藏会话ID搜索框（默认 false） */
+  hideSessionIdFilter?: boolean;
 }
 
 /**
@@ -71,7 +66,11 @@ function formatTokens(count: number): string {
 /**
  * Token 日志历史表格组件
  */
-export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps) {
+export function LogsTable({
+  initialToolType,
+  initialSessionId,
+  hideSessionIdFilter = false,
+}: LogsTableProps) {
   // 查询参数
   const [page, setPage] = useState(0);
   const [pageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -79,6 +78,14 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
   const [sessionIdFilter, setSessionIdFilter] = useState<string>(initialSessionId ?? '');
   const [configNameFilter, setConfigNameFilter] = useState<string>('');
   const [timeRangeFilter, setTimeRangeFilter] = useState<string>('all');
+
+  // 自定义时间范围状态
+  const [timeRangeMode, setTimeRangeMode] = useState<'preset' | 'custom'>('preset');
+  const [customStartTime, setCustomStartTime] = useState<Date>(
+    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+  );
+  const [customEndTime, setCustomEndTime] = useState<Date>(new Date());
+  const [showCustomDialog, setShowCustomDialog] = useState(false);
 
   // 视图状态
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set()); // 展开的行ID集合
@@ -107,9 +114,20 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
     setError(null);
 
     try {
-      // 构建查询参数
-      const timeRange = TIME_RANGE_OPTIONS.find((opt) => opt.value === timeRangeFilter);
-      const { start_time, end_time } = timeRange?.getRange() ?? {};
+      // 构建查询参数 - 支持预设和自定义时间范围
+      let start_time: number | undefined;
+      let end_time: number | undefined;
+
+      if (timeRangeMode === 'preset') {
+        const timeRange = TIME_RANGE_OPTIONS.find((opt) => opt.value === timeRangeFilter);
+        const range = timeRange?.getRange() ?? {};
+        start_time = range.start_time;
+        end_time = range.end_time;
+      } else {
+        // 自定义时间范围
+        start_time = Math.floor(customStartTime.getTime() / 1000);
+        end_time = Math.floor(customEndTime.getTime() / 1000);
+      }
 
       const result = await queryTokenLogs({
         tool_type: toolTypeFilter,
@@ -128,7 +146,17 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
     } finally {
       setIsLoading(false);
     }
-  }, [page, pageSize, toolTypeFilter, sessionIdFilter, configNameFilter, timeRangeFilter]);
+  }, [
+    page,
+    pageSize,
+    toolTypeFilter,
+    sessionIdFilter,
+    configNameFilter,
+    timeRangeFilter,
+    timeRangeMode,
+    customStartTime,
+    customEndTime,
+  ]);
 
   // 初始加载和过滤器变更时重新加载
   useEffect(() => {
@@ -141,7 +169,24 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
     setSessionIdFilter('');
     setConfigNameFilter('');
     setTimeRangeFilter('all');
+    setTimeRangeMode('preset');
     setPage(0);
+  };
+
+  // 处理时间范围变更
+  const handleTimeRangeChange = (value: string) => {
+    if (value === 'custom') {
+      setShowCustomDialog(true);
+    } else {
+      setTimeRangeMode('preset');
+      setTimeRangeFilter(value);
+    }
+  };
+
+  // 确认自定义时间范围
+  const handleConfirmCustomTime = () => {
+    setTimeRangeMode('custom');
+    setShowCustomDialog(false);
   };
 
   // 分页控制
@@ -159,24 +204,69 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <History className="h-5 w-5" />
-          历史日志
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {/* 过滤器 */}
         <div className="mb-4 space-y-3">
-          {/* 过滤栏 - 单行布局 */}
+          {/* 第一行：时间范围选择 */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground">时间范围</span>
+            <div className="flex items-center gap-2">
+              <Tabs
+                value={timeRangeMode === 'preset' ? timeRangeFilter : 'custom'}
+                onValueChange={handleTimeRangeChange}
+                className="flex-1"
+              >
+                <TabsList>
+                  <TabsTrigger value="today">今天</TabsTrigger>
+                  <TabsTrigger value="week">7天</TabsTrigger>
+                  <TabsTrigger value="month">30天</TabsTrigger>
+
+                  {/* 更多预设范围 */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant={
+                          timeRangeMode === 'preset' &&
+                          !['today', 'week', 'month', 'all', 'custom'].includes(timeRangeFilter)
+                            ? 'default'
+                            : 'ghost'
+                        }
+                        size="sm"
+                        className="h-9 px-3"
+                      >
+                        更多
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => handleTimeRangeChange('all')}>
+                        全部
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <TabsTrigger value="custom">自定义</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* 刷新按钮 */}
+              <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={isLoading}>
+                <Loader2 className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
+
+          {/* 第二行：搜索过滤 */}
           <div className="flex items-center gap-3">
             {/* 会话 ID 搜索 */}
-            <Input
-              placeholder="搜索会话 ID..."
-              value={sessionIdFilter}
-              onChange={(e) => setSessionIdFilter(e.target.value)}
-              className="max-w-xs"
-            />
+            {!hideSessionIdFilter && (
+              <Input
+                placeholder="搜索会话 ID..."
+                value={sessionIdFilter}
+                onChange={(e) => setSessionIdFilter(e.target.value)}
+                className="max-w-xs"
+              />
+            )}
 
             {/* 配置名称搜索 */}
             <Input
@@ -186,23 +276,13 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
               className="max-w-xs"
             />
 
-            {/* 时间范围过滤 */}
-            <Select value={timeRangeFilter} onValueChange={setTimeRangeFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="时间范围" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_RANGE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
             {/* 查询按钮 */}
             <Button variant="outline" size="sm" onClick={fetchLogs} disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
             </Button>
 
             {/* 重置按钮 */}
@@ -472,6 +552,17 @@ export function LogsTable({ initialToolType, initialSessionId }: LogsTableProps)
           </>
         )}
       </CardContent>
+
+      {/* 自定义时间范围对话框 */}
+      <CustomTimeRangeDialog
+        open={showCustomDialog}
+        onOpenChange={setShowCustomDialog}
+        startTime={customStartTime}
+        endTime={customEndTime}
+        onStartTimeChange={setCustomStartTime}
+        onEndTimeChange={setCustomEndTime}
+        onConfirm={handleConfirmCustomTime}
+      />
     </Card>
   );
 }

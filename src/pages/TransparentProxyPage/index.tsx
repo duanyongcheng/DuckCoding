@@ -157,19 +157,21 @@ export function TransparentProxyPage({ selectedToolId: initialToolId }: Transpar
 
           return (
             <TabsContent key={tool.id} value={tool.id} className="space-y-0">
-              {/* 代理控制条 */}
-              <ProxyControlBar
-                tool={tool}
-                isRunning={toolIsRunning}
-                port={toolPort}
-                isLoading={toolIsLoading}
-                isConfigured={toolIsConfigured}
-                config={toolData.config}
-                onStart={() => handleStartProxy(tool.id)}
-                onStop={() => handleStopProxy(tool.id)}
-                onConfigUpdated={refreshData}
-                onSaveSettings={(updates) => saveToolConfig(tool.id, updates)}
-              />
+              {/* 代理控制条 - 仅在主页面显示 */}
+              {viewState.mode === 'main' && (
+                <ProxyControlBar
+                  tool={tool}
+                  isRunning={toolIsRunning}
+                  port={toolPort}
+                  isLoading={toolIsLoading}
+                  isConfigured={toolIsConfigured}
+                  config={toolData.config}
+                  onStart={() => handleStartProxy(tool.id)}
+                  onStop={() => handleStopProxy(tool.id)}
+                  onConfigUpdated={refreshData}
+                  onSaveSettings={(updates) => saveToolConfig(tool.id, updates)}
+                />
+              )}
 
               {/* 根据视图模式渲染内容 */}
               {viewState.mode === 'main' ? (

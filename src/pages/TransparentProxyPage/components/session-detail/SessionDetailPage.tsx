@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChevronLeft } from 'lucide-react';
 import { useSessionData } from '../../hooks/useSessionData';
+import { RealtimeStats } from '../RealtimeStats';
 import { SessionStatsTab } from './SessionStatsTab';
 import { SessionLogsTab } from './SessionLogsTab';
 import { SessionSettingsTab } from './SessionSettingsTab';
@@ -79,11 +80,13 @@ export function SessionDetailPage({ sessionId, toolId, onBack }: SessionDetailPa
         </TabsList>
 
         <TabsContent value="session-stats">
-          <SessionStatsTab sessionId={sessionId} toolId={toolId} />
+          {/* 实时统计栏 - 仅在会话统计 Tab 下显示 */}
+          <RealtimeStats sessionId={session.display_id} toolType={toolId} />
+          <SessionStatsTab sessionId={session.display_id} toolId={toolId} />
         </TabsContent>
 
         <TabsContent value="session-logs">
-          <SessionLogsTab sessionId={sessionId} toolId={toolId} />
+          <SessionLogsTab sessionId={session.display_id} toolId={toolId} />
         </TabsContent>
 
         <TabsContent value="session-settings">

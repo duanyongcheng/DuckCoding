@@ -28,10 +28,7 @@ interface UseSessionDataOptions {
  * - 支持分页
  * - 支持 null 参数（禁用时不加载数据）
  */
-export function useSessionData(
-  toolId: ToolId | null,
-  options: UseSessionDataOptions = {},
-) {
+export function useSessionData(toolId: ToolId | null, options: UseSessionDataOptions = {}) {
   const { pageSize = 20, autoRefresh = true } = options;
   const { toast } = useToast();
 
