@@ -3,7 +3,8 @@ import {
   checkAllUpdates,
   checkUpdate,
   type ToolStatus,
-  updateTool as updateToolCommand,
+  updateToolInstance,
+  getToolInstances,
 } from '@/lib/tauri-commands';
 
 export function useDashboard(initialTools: ToolStatus[]) {
@@ -123,17 +124,62 @@ export function useDashboard(initialTools: ToolStatus[]) {
 
     try {
       setUpdating(toolId);
-      await updateToolCommand(toolId);
+
+      // 获取工具实例，找到 Local 类型的实例 ID
+      const instances = await getToolInstances();
+      const toolInstances = instances[toolId] || [];
+      const localInstance = toolInstances.find((inst) => inst.tool_type === 'Local');
+
+      if (!localInstance) {
+        return {
+          success: false,
+          message: '未找到本地工具实例',
+        };
+      }
+
+      const result = await updateToolInstance(localInstance.instance_id);
+
+      if (result.success) {
+        // 更新成功后，刷新该工具的状态
+        setTools((prevTools) =>
+          prevTools.map((tool) => {
+            if (tool.id === toolId) {
+              return {
+                ...tool,
+                version: result.latest_version || tool.latestVersion || tool.version,
+                hasUpdate: false,
+                latestVersion: result.latest_version || null,
+              };
+            }
+            return tool;
+          }),
+        );
+      }
 
       return {
-        success: true,
-        message: '已更新到最新版本',
+        success: result.success,
+        message: result.success ? '已更新到最新版本' : result.message || '更新失败',
       };
     } catch (error) {
       console.error('Failed to update ' + toolId, error);
+      // 提取错误信息：处理 Error 对象、字符串和 Tauri 错误对象
+      let errorMessage = '更新失败';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        // Tauri 错误可能是 { message: string } 或其他格式
+        const errObj = error as Record<string, unknown>;
+        if (typeof errObj.message === 'string') {
+          errorMessage = errObj.message;
+        } else {
+          errorMessage = JSON.stringify(error);
+        }
+      }
       return {
         success: false,
-        message: String(error),
+        message: errorMessage,
       };
     } finally {
       setUpdating(null);

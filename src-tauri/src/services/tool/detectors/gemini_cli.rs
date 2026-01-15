@@ -68,7 +68,19 @@ impl ToolDetector for GeminiCLIDetector {
     // ==================== 检测逻辑 ====================
 
     async fn detect_install_method(&self, executor: &CommandExecutor) -> Option<InstallMethod> {
-        // Gemini CLI 仅支持 npm 安装
+        // 检查 Homebrew 安装（macOS）
+        #[cfg(target_os = "macos")]
+        {
+            if executor.command_exists_async("brew").await {
+                let cmd = "brew list --formula | grep -q '^gemini-cli$'";
+                let result = executor.execute_async(cmd).await;
+                if result.success {
+                    return Some(InstallMethod::Brew);
+                }
+            }
+        }
+
+        // 检查 npm 全局安装
         if executor.command_exists_async("npm").await {
             let stderr_redirect = if cfg!(windows) {
                 "2>nul"
@@ -77,12 +89,13 @@ impl ToolDetector for GeminiCLIDetector {
             };
             let cmd = format!("npm list -g @google/gemini-cli {stderr_redirect}");
             let result = executor.execute_async(&cmd).await;
-            if result.success {
+            if result.success && !result.stdout.contains("(empty)") {
                 return Some(InstallMethod::Npm);
             }
         }
 
-        Some(InstallMethod::Npm)
+        // 默认返回 Other（无法确定安装方式）
+        Some(InstallMethod::Other)
     }
 
     // ==================== 安装逻辑 ====================
@@ -95,14 +108,20 @@ impl ToolDetector for GeminiCLIDetector {
     ) -> Result<()> {
         match method {
             InstallMethod::Npm => self.install_npm(executor, force).await,
-            InstallMethod::Official | InstallMethod::Brew | InstallMethod::Other => {
-                anyhow::bail!("Gemini CLI 仅支持 npm 安装")
+            InstallMethod::Brew => self.install_brew(executor).await,
+            InstallMethod::Official | InstallMethod::Other => {
+                anyhow::bail!("Gemini CLI 支持 npm 或 brew 安装")
             }
         }
     }
 
     async fn update(&self, executor: &CommandExecutor, _force: bool) -> Result<()> {
-        self.update_npm(executor).await
+        // 根据当前安装方式选择更新命令
+        let method = self.detect_install_method(executor).await;
+        match method {
+            Some(InstallMethod::Brew) => self.update_brew(executor).await,
+            _ => self.update_npm(executor).await,
+        }
     }
 
     // ==================== 配置管理 ====================
@@ -169,6 +188,34 @@ impl GeminiCLIDetector {
             Ok(())
         } else {
             anyhow::bail!("❌ npm 更新失败\n\n{}", result.stderr)
+        }
+    }
+
+    /// 使用 Homebrew 安装（macOS）
+    async fn install_brew(&self, executor: &CommandExecutor) -> Result<()> {
+        if !executor.command_exists_async("brew").await {
+            anyhow::bail!("Homebrew 未安装");
+        }
+
+        let command = "brew install gemini-cli";
+        let result = executor.execute_async(command).await;
+
+        if result.success {
+            Ok(())
+        } else {
+            anyhow::bail!("❌ Homebrew 安装失败\n\n{}", result.stderr)
+        }
+    }
+
+    /// 使用 Homebrew 更新（macOS）
+    async fn update_brew(&self, executor: &CommandExecutor) -> Result<()> {
+        let command = "brew upgrade gemini-cli";
+        let result = executor.execute_async(command).await;
+
+        if result.success {
+            Ok(())
+        } else {
+            anyhow::bail!("❌ Homebrew 更新失败\n\n{}", result.stderr)
         }
     }
 

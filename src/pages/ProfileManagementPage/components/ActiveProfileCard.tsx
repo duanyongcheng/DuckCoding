@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import type { ProfileGroup } from '@/types/profile';
 import type { ToolInstance, ToolType } from '@/types/tool-management';
-import { getToolInstances, checkUpdate, updateTool } from '@/lib/tauri-commands';
+import { getToolInstances, checkUpdate, updateToolInstance } from '@/lib/tauri-commands';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -136,7 +136,7 @@ export function ActiveProfileCard({ group, proxyRunning }: ActiveProfileCardProp
         description: `正在更新 ${group.tool_name}...`,
       });
 
-      const result = await updateTool(group.tool_id);
+      const result = await updateToolInstance(selectedInstance.instance_id);
 
       if (result.success) {
         setHasUpdate(false);

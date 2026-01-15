@@ -56,11 +56,11 @@ impl ToolRegistry {
     }
 
     /// 获取本地工具的轻量级状态（供 Dashboard 使用）
-    /// 优先从数据库读取，如果数据库为空则执行检测并持久化
+    /// 优先从数据库读取，如果某个工具没有 Local 实例则自动检测并持久化
     pub async fn get_local_tool_status(&self) -> Result<Vec<crate::models::ToolStatus>> {
         tracing::debug!("获取本地工具轻量级状态");
 
-        // 从数据库读取所有实例（不主动检测）
+        // 从数据库读取所有实例
         let grouped = self.get_all_grouped().await?;
 
         // 转换为轻量级 ToolStatus
@@ -83,22 +83,50 @@ impl ToolRegistry {
                         version: local_instance.version.clone(),
                     });
                 } else {
-                    // 没有本地实例，返回未安装状态
-                    statuses.push(crate::models::ToolStatus {
-                        id: tool_id.to_string(),
-                        name: tool_name.to_string(),
-                        installed: false,
-                        version: None,
-                    });
+                    // 没有本地实例，自动检测并持久化
+                    tracing::info!("工具 {} 没有 Local 实例，自动检测", tool_id);
+                    match self.detect_and_persist_single_tool(tool_id).await {
+                        Ok(instance) => {
+                            statuses.push(crate::models::ToolStatus {
+                                id: tool_id.to_string(),
+                                name: tool_name.to_string(),
+                                installed: instance.installed,
+                                version: instance.version.clone(),
+                            });
+                        }
+                        Err(e) => {
+                            tracing::warn!("自动检测工具 {} 失败: {}", tool_id, e);
+                            statuses.push(crate::models::ToolStatus {
+                                id: tool_id.to_string(),
+                                name: tool_name.to_string(),
+                                installed: false,
+                                version: None,
+                            });
+                        }
+                    }
                 }
             } else {
-                // 数据库中没有该工具的任何实例
-                statuses.push(crate::models::ToolStatus {
-                    id: tool_id.to_string(),
-                    name: tool_name.to_string(),
-                    installed: false,
-                    version: None,
-                });
+                // 数据库中没有该工具的任何实例，自动检测
+                tracing::info!("工具 {} 不在数据库中，自动检测", tool_id);
+                match self.detect_and_persist_single_tool(tool_id).await {
+                    Ok(instance) => {
+                        statuses.push(crate::models::ToolStatus {
+                            id: tool_id.to_string(),
+                            name: tool_name.to_string(),
+                            installed: instance.installed,
+                            version: instance.version.clone(),
+                        });
+                    }
+                    Err(e) => {
+                        tracing::warn!("自动检测工具 {} 失败: {}", tool_id, e);
+                        statuses.push(crate::models::ToolStatus {
+                            id: tool_id.to_string(),
+                            name: tool_name.to_string(),
+                            installed: false,
+                            version: None,
+                        });
+                    }
+                }
             }
         }
 
