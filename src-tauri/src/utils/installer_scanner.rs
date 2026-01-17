@@ -94,12 +94,28 @@ pub fn scan_installer_paths(tool_path: &str) -> Vec<InstallerCandidate> {
         }
     }
 
-    // 5. 排序：同级 npm > 上级 npm > 同级 brew > 上级 brew
+    // 5. 智能排序：根据工具路径推断最可能的安装方式
+    // - 如果工具在 Homebrew 目录下，优先选择 brew
+    // - 否则优先选择 npm
+    let is_homebrew_path = tool_path.contains("/opt/homebrew/")
+        || tool_path.contains("/usr/local/Cellar/")
+        || tool_path.contains("/home/linuxbrew/");
+
     candidates.sort_by_key(|c| {
-        let type_priority = match c.installer_type {
-            InstallMethod::Npm => 1,
-            InstallMethod::Brew => 2,
-            _ => 3,
+        let type_priority = if is_homebrew_path {
+            // Homebrew 路径：优先选择 brew
+            match c.installer_type {
+                InstallMethod::Brew => 1,
+                InstallMethod::Npm => 2,
+                _ => 3,
+            }
+        } else {
+            // 其他路径：优先选择 npm
+            match c.installer_type {
+                InstallMethod::Npm => 1,
+                InstallMethod::Brew => 2,
+                _ => 3,
+            }
         };
         (c.level, type_priority)
     });
