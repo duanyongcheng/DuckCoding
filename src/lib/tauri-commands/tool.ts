@@ -96,14 +96,6 @@ export async function updateToolInstance(
 }
 
 /**
- * 更新工具（旧版本，已废弃）
- * @deprecated 请使用 updateToolInstance
- */
-export async function updateTool(tool: string, force?: boolean): Promise<UpdateResult> {
-  return await invoke<UpdateResult>('update_tool', { tool, force });
-}
-
-/**
  * 获取所有工具实例（按工具ID分组）
  * @returns 按工具ID分组的实例集合
  */

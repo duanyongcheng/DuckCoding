@@ -166,10 +166,9 @@ export function DashboardPage({ tools: toolsProp, loading: loadingProp }: Dashbo
         title: '更新成功',
         description: `${getToolDisplayName(toolId)} ${result.message}`,
       });
-      // 更新成功后重新检测工具状态（而不是仅读数据库）
-      await handleRefreshToolStatus();
-      // 更新成功后自动检测工具更新状态，显示「最新版」标识
-      await checkSingleToolUpdate(toolId);
+      // 更新成功后，handleUpdate 已经设置了 hasUpdate: false
+      // 不需要再调用 handleRefreshToolStatus 和 checkSingleToolUpdate
+      // 因为这会导致状态竞态问题
     } else {
       toast({
         title: '更新失败',

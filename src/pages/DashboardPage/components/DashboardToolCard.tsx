@@ -72,18 +72,18 @@ export function DashboardToolCard({
             {tool.hasUpdate && (
               <Badge
                 variant="secondary"
-                className="gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                className="gap-1 whitespace-nowrap bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className="h-3 w-3 flex-shrink-0" />
                 有更新
               </Badge>
             )}
             {isLatest && (
               <Badge
                 variant="secondary"
-                className="gap-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                className="gap-1 whitespace-nowrap bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
               >
-                <CheckCircle2 className="h-3 w-3" />
+                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
                 最新版
               </Badge>
             )}

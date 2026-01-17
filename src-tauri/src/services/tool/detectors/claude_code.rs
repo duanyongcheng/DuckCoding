@@ -121,14 +121,15 @@ impl ToolDetector for ClaudeCodeDetector {
         }
     }
 
-    async fn update(&self, executor: &CommandExecutor, force: bool) -> Result<()> {
+    async fn update(&self, executor: &CommandExecutor, _force: bool) -> Result<()> {
         // 检测当前安装方法
         let method = self.detect_install_method(executor).await;
 
         match method {
             Some(InstallMethod::Official) => {
                 // 官方安装：重新执行安装脚本即可更新
-                self.install_official(executor, force).await
+                // 更新时跳过镜像检查（force=true），因为用户已主动点击更新
+                self.install_official(executor, true).await
             }
             Some(InstallMethod::Npm) => {
                 // npm 安装：使用 npm update

@@ -10,7 +10,11 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 impl ToolRegistry {
-    /// 更新工具实例（使用配置的安装器）
+    /// 更新工具实例（智能选择更新方式）
+    ///
+    /// # 更新策略
+    /// - Npm/Brew: 使用 InstallerService.update_instance_by_installer（基于配置的安装器路径）
+    /// - Official/Other: 使用 Detector.update 方法（内置更新逻辑）
     ///
     /// # 参数
     /// - instance_id: 实例ID
@@ -30,11 +34,58 @@ impl ToolRegistry {
             .find(|inst| inst.instance_id == instance_id && inst.tool_type == ToolType::Local)
             .ok_or_else(|| anyhow::anyhow!("未找到实例: {}", instance_id))?;
 
-        // 2. 使用 InstallerService 执行更新
-        let installer = InstallerService::new();
-        let result = installer
-            .update_instance_by_installer(instance, force)
-            .await?;
+        // 2. 根据安装方法选择更新方式
+        let install_method = instance.install_method.clone();
+
+        let result = match install_method {
+            Some(InstallMethod::Npm) | Some(InstallMethod::Brew) => {
+                // Npm/Brew: 使用 InstallerService 执行更新
+                let installer = InstallerService::new();
+                installer
+                    .update_instance_by_installer(instance, force)
+                    .await?
+            }
+            Some(InstallMethod::Official) | Some(InstallMethod::Other) | None => {
+                // Official/Other/None: 使用 Detector 的 update 方法
+                let detector = self
+                    .detector_registry
+                    .get(&instance.base_id)
+                    .ok_or_else(|| anyhow::anyhow!("未找到工具 {} 的检测器", instance.base_id))?;
+
+                tracing::info!(
+                    "使用 Detector 更新工具 {} (安装方式: {:?})",
+                    instance.tool_name,
+                    install_method
+                );
+
+                // 执行 Detector 的 update 方法
+                detector.update(&self.command_executor, force).await?;
+
+                // 更新成功，获取新版本
+                let new_version = if let Some(path) = &instance.install_path {
+                    let version_cmd = format!("{} --version", path);
+                    let version_result = self.command_executor.execute_async(&version_cmd).await;
+                    if version_result.success {
+                        Some(parse_version_string(version_result.stdout.trim()))
+                    } else {
+                        None
+                    }
+                } else {
+                    detector.get_version(&self.command_executor).await
+                };
+
+                UpdateResult {
+                    success: true,
+                    message: "✅ 更新成功！".to_string(),
+                    has_update: false,
+                    current_version: new_version.clone(),
+                    latest_version: new_version,
+                    mirror_version: None,
+                    mirror_is_stale: None,
+                    tool_id: Some(instance.base_id.clone()),
+                }
+            }
+        };
 
         // 3. 如果更新成功，更新数据库中的版本号
         if result.success {
