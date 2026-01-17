@@ -146,11 +146,13 @@ export function RemoteTokenManagement({ provider }: RemoteTokenManagementProps) 
   };
 
   /**
-   * 格式化额度
+   * 格式化额度（剩余/总额）
    */
-  const formatQuota = (quota: number, unlimited: boolean) => {
+  const formatQuota = (remainQuota: number, usedQuota: number, unlimited: boolean) => {
     if (unlimited) return '无限';
-    return `$${(quota / 1000000).toFixed(2)}`;
+    const remain = (remainQuota / 500000).toFixed(2);
+    const total = ((remainQuota + usedQuota) / 500000).toFixed(2);
+    return `$${remain} / $${total}`;
   };
 
   /**
@@ -201,7 +203,7 @@ export function RemoteTokenManagement({ provider }: RemoteTokenManagementProps) 
               <TableRow>
                 <TableHead>名称</TableHead>
                 <TableHead>分组</TableHead>
-                <TableHead>剩余额度</TableHead>
+                <TableHead>额度</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead>过期时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
@@ -216,9 +218,9 @@ export function RemoteTokenManagement({ provider }: RemoteTokenManagementProps) 
                   {/* 分组 */}
                   <TableCell className="text-sm">{token.group}</TableCell>
 
-                  {/* 剩余额度 */}
+                  {/* 额度 */}
                   <TableCell className="text-sm">
-                    {formatQuota(token.remain_quota, token.unlimited_quota)}
+                    {formatQuota(token.remain_quota, token.used_quota, token.unlimited_quota)}
                   </TableCell>
 
                   {/* 状态 */}
