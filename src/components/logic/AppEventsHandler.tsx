@@ -136,6 +136,12 @@ export function AppEventsHandler() {
         setActiveTab('profile-management');
       } else if (path === '/settings') {
         setActiveTab('settings');
+      } else if (path.startsWith('/transparent-proxy/')) {
+        const toolId = path.replace('/transparent-proxy/', '').trim();
+        if (toolId === 'claude-code' || toolId === 'codex' || toolId === 'gemini-cli') {
+          setSelectedProxyToolId(toolId);
+        }
+        setActiveTab('transparent-proxy');
       }
     });
 
@@ -152,6 +158,7 @@ export function AppEventsHandler() {
     setActiveTab,
     setSettingsInitialTab,
     setSettingsRestrictToTab,
+    setSelectedProxyToolId,
     setIsUpdateDialogOpen,
     setUpdateInfo,
     setTokenStatsParams,
