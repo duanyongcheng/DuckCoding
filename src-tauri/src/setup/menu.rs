@@ -18,6 +18,7 @@ use crate::commands::proxy_commands::{
 };
 use crate::commands::update_commands::{trigger_check_update_internal, UpdateServiceState};
 use duckcoding::models::proxy_config::ToolProxyConfig;
+use duckcoding::services::config::watcher::suppress_external_detection_for_tool;
 use duckcoding::services::profile_manager::ProfileManager;
 use duckcoding::services::proxy_config_manager::ProxyConfigManager;
 
@@ -453,6 +454,11 @@ fn handle_proxy_menu_action<R: Runtime>(app: &AppHandle<R>, action: ProxyMenuAct
             let tool_id_owned = tool_id.to_string();
             let profile_name_owned = profile_name.to_string();
             tauri::async_runtime::spawn(async move {
+                suppress_external_detection_for_tool(
+                    &tool_id_owned,
+                    std::time::Duration::from_secs(3),
+                );
+
                 let proxy_state = app_handle.state::<ProxyManagerState>();
                 let profile_state = app_handle.state::<ProfileManagerState>();
                 if let Err(error) = update_proxy_from_profile_internal(
@@ -636,6 +642,8 @@ pub fn setup_app_menu(app: &tauri::App) -> tauri::Result<()> {
 
 /// 处理 Profile 激活
 fn handle_profile_activation<R: Runtime>(app: &AppHandle<R>, tool_id: &str, profile_name: &str) {
+    suppress_external_detection_for_tool(tool_id, std::time::Duration::from_secs(3));
+
     let state = app.state::<ProfileManagerState>();
     let manager = state.manager.blocking_read();
     match manager.activate_profile(tool_id, profile_name) {
