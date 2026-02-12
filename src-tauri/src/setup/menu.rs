@@ -269,39 +269,6 @@ fn build_proxy_tool_submenu<R: Runtime>(
     builder.build()
 }
 
-/// 构建透明代理总菜单
-fn build_proxy_submenu<R: Runtime>(
-    app: &AppHandle<R>,
-    profile_manager: &ProfileManager,
-    proxy_config_mgr: Option<&ProxyConfigManager>,
-    running_states: &HashMap<String, bool>,
-) -> tauri::Result<Submenu<R>> {
-    let mut builder = SubmenuBuilder::new(app, "透明代理");
-
-    for (idx, tool_id) in SUPPORTED_MENU_TOOLS.iter().enumerate() {
-        let profiles = profile_manager.list_profiles(tool_id).unwrap_or_default();
-        let selected_profile = proxy_config_mgr
-            .and_then(|mgr| mgr.get_config(tool_id).ok().flatten())
-            .and_then(|config| config.real_profile_name);
-        let is_running = running_states.get(*tool_id).copied().unwrap_or(false);
-
-        let submenu = build_proxy_tool_submenu(
-            app,
-            tool_id,
-            &profiles,
-            selected_profile.as_deref(),
-            is_running,
-        )?;
-        builder = builder.item(&submenu);
-
-        if idx < SUPPORTED_MENU_TOOLS.len() - 1 {
-            builder = builder.separator();
-        }
-    }
-
-    builder.build()
-}
-
 /// 创建菜单栏图标菜单
 fn create_tray_menu<R: Runtime>(
     app: &AppHandle<R>,
@@ -334,18 +301,35 @@ fn create_tray_menu<R: Runtime>(
         }
     }
 
-    let proxy_submenu = build_proxy_submenu(
-        app,
-        profile_manager,
-        proxy_config_mgr.as_ref(),
-        running_states,
-    )?;
+    let proxy_title_item =
+        MenuItem::with_id(app, "menu:proxy_title", "透明代理", false, None::<&str>)?;
     let check_update_item =
         MenuItem::with_id(app, "menu:check_update", "检查更新", true, None::<&str>)?;
 
+    builder = builder.separator().item(&proxy_title_item);
+
+    for (idx, tool_id) in SUPPORTED_MENU_TOOLS.iter().enumerate() {
+        let profiles = profile_manager.list_profiles(tool_id).unwrap_or_default();
+        let selected_profile = proxy_config_mgr
+            .as_ref()
+            .and_then(|mgr| mgr.get_config(tool_id).ok().flatten())
+            .and_then(|config| config.real_profile_name);
+        let is_running = running_states.get(*tool_id).copied().unwrap_or(false);
+        let submenu = build_proxy_tool_submenu(
+            app,
+            tool_id,
+            &profiles,
+            selected_profile.as_deref(),
+            is_running,
+        )?;
+        builder = builder.item(&submenu);
+
+        if idx < SUPPORTED_MENU_TOOLS.len() - 1 {
+            builder = builder.separator();
+        }
+    }
+
     builder = builder
-        .separator()
-        .item(&proxy_submenu)
         .separator()
         .item(&check_update_item)
         .item(&MenuItem::with_id(
